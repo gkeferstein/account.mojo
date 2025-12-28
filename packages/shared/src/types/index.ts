@@ -190,3 +190,4 @@ export interface ConsentUpdate {
   granted: boolean;
 }
 
+

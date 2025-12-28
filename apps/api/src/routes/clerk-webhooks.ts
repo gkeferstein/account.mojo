@@ -3,6 +3,7 @@ import { Webhook } from 'svix';
 import { createClerkClient } from '@clerk/backend';
 import prisma from '../lib/prisma.js';
 import env from '../lib/env.js';
+import { crmClient } from '../clients/crm.js';
 
 // Clerk Webhook Event Types
 interface ClerkWebhookEvent {
@@ -173,6 +174,30 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
           });
 
           console.log(`✅ User created/updated: ${user.id} (${primaryEmail})`);
+
+          // Create customer in kontakte.mojo (SSOT)
+          // This may upgrade an existing lead or create a new customer
+          try {
+            const crmResult = await crmClient.createCustomer({
+              clerkUserId: userData.id,
+              email: primaryEmail,
+              firstName: userData.first_name || 'Unbekannt',
+              lastName: userData.last_name || 'User',
+            });
+
+            if (crmResult) {
+              if (crmResult.upgraded) {
+                console.log(`✅ Lead upgraded to customer in CRM: ${crmResult.accountId}`);
+              } else if (crmResult.created) {
+                console.log(`✅ Customer created in CRM: ${crmResult.accountId}`);
+              } else if (crmResult.existing) {
+                console.log(`ℹ️ Customer already exists in CRM: ${crmResult.accountId}`);
+              }
+            }
+          } catch (crmError) {
+            // Log error but don't fail the webhook - CRM sync can be retried
+            console.error('⚠️ Failed to sync customer to CRM:', crmError);
+          }
 
           // Auto-provision Personal Organization
           await provisionPersonalOrg(userData.id, user.id, userData.first_name, primaryEmail);

@@ -113,3 +113,4 @@ export type SwitchTenantInput = z.infer<typeof switchTenantSchema>;
 export type WebhookPayload = z.infer<typeof webhookPayloadSchema>;
 export type PaginationInput = z.infer<typeof paginationSchema>;
 
+

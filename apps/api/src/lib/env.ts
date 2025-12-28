@@ -22,6 +22,7 @@ export const env = {
   PAYMENTS_API_KEY: process.env.PAYMENTS_API_KEY || '',
   CRM_API_URL: process.env.CRM_API_URL || 'https://kontakte.mojo-institut.de/api/v1',
   CRM_API_KEY: process.env.CRM_API_KEY || '',
+  CRM_TENANT_SLUG: process.env.CRM_TENANT_SLUG || 'mojo',
   
   // Webhooks
   WEBHOOK_SECRET_PAYMENTS: process.env.WEBHOOK_SECRET_PAYMENTS || 'dev-webhook-secret-payments',

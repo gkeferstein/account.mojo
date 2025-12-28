@@ -5,7 +5,7 @@ import { logAuditEvent, AuditActions } from '../services/audit.js';
 import { profileUpdateSchema } from '@accounts/shared';
 
 export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
-  // GET /profile - Get user profile (aggregated from CRM + local cache)
+  // GET /profile - Get user profile (aggregated from CRM/SSOT + local cache)
   fastify.get('/profile', async (request, reply) => {
     const { auth } = request;
 
@@ -26,12 +26,13 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
       },
     });
 
-    // If cache is stale (older than 5 minutes), refresh from CRM
+    // If cache is stale (older than 5 minutes), refresh from CRM (SSOT)
     const cacheAge = profileCache ? Date.now() - profileCache.updatedAt.getTime() : Infinity;
     const cacheStale = cacheAge > 5 * 60 * 1000;
 
     if (!profileCache || cacheStale) {
-      const crmProfile = await crmClient.getProfile(auth.userId, auth.activeTenant.id);
+      // Fetch from kontakte.mojo (SSOT) using clerkUserId
+      const crmProfile = await crmClient.getProfile(auth.clerkUserId);
 
       if (crmProfile) {
         profileCache = await prisma.profileCache.upsert({
@@ -73,7 +74,7 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
     return reply.send(profile);
   });
 
-  // PATCH /profile - Update user profile
+  // PATCH /profile - Update user profile (writes to SSOT kontakte.mojo)
   fastify.patch('/profile', async (request, reply) => {
     const { auth } = request;
     const input = profileUpdateSchema.parse(request.body);
@@ -85,8 +86,8 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
       });
     }
 
-    // Update in CRM
-    const updatedProfile = await crmClient.updateProfile(auth.userId, auth.activeTenant.id, input);
+    // Update in CRM (SSOT) using clerkUserId
+    const updatedProfile = await crmClient.updateProfile(auth.clerkUserId, input);
 
     if (!updatedProfile) {
       return reply.status(500).send({
@@ -132,7 +133,7 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
     return reply.send(updatedProfile);
   });
 
-  // GET /profile/consents - Get user consents
+  // GET /profile/consents - Get user consents (from SSOT kontakte.mojo)
   fastify.get('/profile/consents', async (request, reply) => {
     const { auth } = request;
 
@@ -143,12 +144,13 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
       });
     }
 
-    const consents = await crmClient.getConsents(auth.userId, auth.activeTenant.id);
+    // Fetch from kontakte.mojo (SSOT) using clerkUserId
+    const consents = await crmClient.getConsents(auth.clerkUserId);
 
     return reply.send({ consents });
   });
 
-  // PATCH /profile/consents - Update user consents
+  // PATCH /profile/consents - Update user consents (writes to SSOT kontakte.mojo)
   fastify.patch('/profile/consents', async (request, reply) => {
     const { auth } = request;
     const { consents } = request.body as { consents: Array<{ type: string; granted: boolean }> };
@@ -160,7 +162,8 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
       });
     }
 
-    const updatedConsents = await crmClient.updateConsents(auth.userId, auth.activeTenant.id, consents);
+    // Update in kontakte.mojo (SSOT) using clerkUserId
+    const updatedConsents = await crmClient.updateConsents(auth.clerkUserId, consents);
 
     await logAuditEvent(request, {
       action: AuditActions.PREFERENCES_UPDATE,
@@ -172,4 +175,5 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
 }
 
 export default profileRoutes;
+
 

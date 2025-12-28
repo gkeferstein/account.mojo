@@ -109,3 +109,4 @@ export function truncate(str: string, length: number): string {
   return str.substring(0, length) + "...";
 }
 
+
