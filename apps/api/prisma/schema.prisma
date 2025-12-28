@@ -1,0 +1,269 @@
+// Prisma Schema for accounts.mojo
+// Multi-tenant customer account management
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// Core User Model
+// ============================================
+
+model User {
+  id           String   @id @default(uuid())
+  clerkUserId  String   @unique @map("clerk_user_id")
+  email        String   @unique
+  firstName    String?  @map("first_name")
+  lastName     String?  @map("last_name")
+  avatarUrl    String?  @map("avatar_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  memberships      TenantMembership[]
+  profileCaches    ProfileCache[]
+  billingCaches    BillingCache[]
+  entitlementCaches EntitlementCache[]
+  preferences      Preferences[]
+  auditLogs        AuditLog[]
+  dataRequests     DataRequest[]
+
+  @@map("users")
+}
+
+// ============================================
+// Multi-Tenancy Models
+// ============================================
+
+model Tenant {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  clerkOrgId  String?  @unique @map("clerk_org_id")
+  logoUrl     String?  @map("logo_url")
+  isPersonal  Boolean  @default(false) @map("is_personal")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  // Relations
+  memberships       TenantMembership[]
+  invitations       TenantInvitation[]
+  profileCaches     ProfileCache[]
+  billingCaches     BillingCache[]
+  entitlementCaches EntitlementCache[]
+  preferences       Preferences[]
+  auditLogs         AuditLog[]
+  dataRequests      DataRequest[]
+
+  @@index([clerkOrgId])
+  @@index([slug])
+  @@map("tenants")
+}
+
+model TenantMembership {
+  id        String           @id @default(uuid())
+  tenantId  String           @map("tenant_id")
+  userId    String           @map("user_id")
+  role      TenantRole       @default(member)
+  status    MembershipStatus @default(active)
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([tenantId])
+  @@index([userId])
+  @@map("tenant_memberships")
+}
+
+model TenantInvitation {
+  id         String           @id @default(uuid())
+  tenantId   String           @map("tenant_id")
+  email      String
+  role       TenantRole       @default(member)
+  token      String           @unique
+  status     InvitationStatus @default(pending)
+  expiresAt  DateTime         @map("expires_at")
+  acceptedAt DateTime?        @map("accepted_at")
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([email])
+  @@index([token])
+  @@map("tenant_invitations")
+}
+
+// ============================================
+// Cache Models (for external service data)
+// ============================================
+
+model ProfileCache {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  userId    String   @map("user_id")
+  payload   Json     @default("{}")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([tenantId, userId])
+  @@map("profile_cache")
+}
+
+model BillingCache {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  userId       String   @map("user_id")
+  subscription Json?
+  invoices     Json?
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([tenantId, userId])
+  @@map("billing_cache")
+}
+
+model EntitlementCache {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  userId       String   @map("user_id")
+  entitlements Json     @default("[]")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([tenantId, userId])
+  @@map("entitlement_cache")
+}
+
+// ============================================
+// User Preferences
+// ============================================
+
+model Preferences {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  userId    String   @map("user_id")
+  payload   Json     @default("{\"newsletter\":false,\"productUpdates\":true,\"marketingEmails\":false,\"emailNotifications\":true,\"pushNotifications\":false,\"language\":\"de\",\"timezone\":\"Europe/Berlin\"}")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([tenantId, userId])
+  @@map("preferences")
+}
+
+// ============================================
+// Audit Logging
+// ============================================
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  userId       String   @map("user_id")
+  action       String
+  resourceType String?  @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  ip           String?
+  userAgent    String?  @map("user_agent")
+  metadata     Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@index([tenantId, action])
+  @@index([createdAt])
+  @@map("audit_log")
+}
+
+// ============================================
+// GDPR Data Requests
+// ============================================
+
+model DataRequest {
+  id          String            @id @default(uuid())
+  tenantId    String            @map("tenant_id")
+  userId      String            @map("user_id")
+  type        DataRequestType
+  status      DataRequestStatus @default(pending)
+  reason      String?
+  metadata    Json?
+  completedAt DateTime?         @map("completed_at")
+  downloadUrl String?           @map("download_url")
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@index([status])
+  @@map("data_requests")
+}
+
+// ============================================
+// Enums
+// ============================================
+
+enum TenantRole {
+  owner
+  admin
+  member
+  billing_admin
+  support_readonly
+}
+
+enum MembershipStatus {
+  active
+  invited
+  suspended
+  removed
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  expired
+  revoked
+}
+
+enum DataRequestType {
+  export
+  delete
+}
+
+enum DataRequestStatus {
+  pending
+  processing
+  completed
+  failed
+}
+

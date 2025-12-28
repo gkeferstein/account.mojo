@@ -1,0 +1,37 @@
+{
+  "name": "accounts.mojo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MOJO Customer Account Portal - Multi-tenant account management",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:api & npm run dev:web",
+    "dev:api": "npm -w apps/api run dev",
+    "dev:web": "npm -w apps/web run dev",
+    "build": "npm run build:shared && npm run build:api && npm run build:web",
+    "build:shared": "npm -w packages/shared run build",
+    "build:api": "npm -w apps/api run build",
+    "build:web": "npm -w apps/web run build",
+    "start": "npm run start:api & npm run start:web",
+    "start:api": "npm -w apps/api run start",
+    "start:web": "npm -w apps/web run start",
+    "db:migrate": "npm -w apps/api run db:migrate",
+    "db:push": "npm -w apps/api run db:push",
+    "db:seed": "npm -w apps/api run db:seed",
+    "db:studio": "npm -w apps/api run db:studio",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "docker:dev": "docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up",
+    "docker:prod": "docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml up -d",
+    "docker:down": "docker compose -f infra/docker-compose.yml down"
+  },
+  "keywords": ["mojo", "accounts", "portal", "multi-tenant"],
+  "author": "MOJO Institut",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
