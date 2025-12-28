@@ -554,14 +554,34 @@ Client: `apps/api/src/clients/payments.ts`
 - `getEntitlements()` - Berechtigungen abrufen
 - `createBillingPortalSession()` - Stripe Portal URL
 
-### kontakte.mojo (CRM)
+### kontakte.mojo (CRM / SSOT)
+
+**kontakte.mojo ist die Single Source of Truth (SSOT)** für Kundendaten.
+accounts.mojo fungiert als Cache für schnellen Zugriff.
 
 Client: `apps/api/src/clients/crm.ts`
 
-- `getProfile()` - Profildaten abrufen
-- `updateProfile()` - Profil aktualisieren
-- `getConsents()` - DSGVO Consents abrufen
-- `updateConsents()` - Consents aktualisieren
+**Lesen (SSOT → accounts.mojo):**
+- `getProfile(clerkUserId)` - Profildaten abrufen
+- `getConsents(clerkUserId)` - DSGVO Consents abrufen
+- `lookupCustomer(clerkUserId, email)` - Kunde suchen
+
+**Schreiben (accounts.mojo → SSOT):**
+- `createCustomer(data)` - Neuer Kunde bei Clerk user.created
+- `updateProfile(clerkUserId, data)` - Profil aktualisieren
+- `updateConsents(clerkUserId, consents)` - Consents aktualisieren
+
+**Datenfluss:**
+```
+┌─────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│     Clerk       │────►│  accounts.mojo   │────►│  kontakte.mojo   │
+│  user.created   │     │  (Cache + UI)    │     │     (SSOT)       │
+└─────────────────┘     └──────────────────┘     └──────────────────┘
+                               │                         │
+                               │  ◄──── Profile lesen ◄──┤
+                               │  ────► Profile ändern ──►│
+                               └─────────────────────────┘
+```
 
 ### Mock-Modus
 
@@ -627,12 +647,18 @@ if (existingEvent) {
 
 ### Personal Organization Provisioning
 
-Bei `user.created` wird automatisch eine persönliche Organisation erstellt:
+Bei `user.created` wird automatisch:
 
-1. Clerk Organization mit Slug `personal-{userId}` erstellen
-2. Lokaler Tenant mit `isPersonal: true`
-3. Owner-Membership für User
-4. Default Preferences
+1. **In accounts.mojo:**
+   - Clerk Organization mit Slug `personal-{userId}` erstellen
+   - Lokaler Tenant mit `isPersonal: true`
+   - Owner-Membership für User
+   - Default Preferences
+
+2. **In kontakte.mojo (SSOT):**
+   - Kunde mit `clerkUserId` erstellen
+   - Falls Email bereits als Lead existiert → Lead wird zu Kunde upgraded
+   - Profildaten (firstName, lastName, email) synchronisiert
 
 ---
 
@@ -690,8 +716,11 @@ NEXT_PUBLIC_API_URL=https://accounts.mojo-institut.de
 # External Services
 PAYMENTS_API_URL=https://payments.mojo-institut.de/api/v1
 PAYMENTS_API_KEY=<key>
+
+# kontakte.mojo (CRM / SSOT)
 CRM_API_URL=https://kontakte.mojo-institut.de/api/v1
-CRM_API_KEY=<key>
+CRM_API_KEY=<SERVICE_API_KEY aus kontakte.mojo>
+CRM_TENANT_SLUG=mojo
 
 # Mock Mode (nur Development)
 MOCK_EXTERNAL_SERVICES=false

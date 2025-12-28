@@ -22,8 +22,8 @@ services:
   api:
     container_name: accounts-api
     build:
-      context: ../apps/api
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: apps/api/Dockerfile
     depends_on:
       db:
         condition: service_healthy
@@ -37,6 +37,7 @@ services:
       PAYMENTS_API_KEY: ${PAYMENTS_API_KEY}
       CRM_API_URL: ${CRM_API_URL:-https://kontakte.mojo-institut.de/api/v1}
       CRM_API_KEY: ${CRM_API_KEY}
+      CRM_TENANT_SLUG: ${CRM_TENANT_SLUG:-mojo}
       MOCK_EXTERNAL_SERVICES: ${MOCK_EXTERNAL_SERVICES:-false}
       WEBHOOK_SECRET_PAYMENTS: ${WEBHOOK_SECRET_PAYMENTS}
       WEBHOOK_SECRET_CRM: ${WEBHOOK_SECRET_CRM}

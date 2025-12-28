@@ -344,3 +344,4 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
 
 export default tenantsRoutes;
 
+

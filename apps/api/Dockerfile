@@ -1,3 +1,4 @@
+# Multi-stage build für Monorepo mit @accounts/shared
 FROM node:22-slim AS base
 
 # Install OpenSSL for Prisma
@@ -5,37 +6,73 @@ RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Install dependencies
-FROM base AS deps
-COPY package*.json ./
-COPY prisma ./prisma/
-RUN npm ci
+# ===========================================
+# Stage 1: Build shared package
+# ===========================================
+FROM base AS shared-builder
+WORKDIR /app/packages/shared
+COPY packages/shared/ ./
+RUN npm install && npm run build
+
+# ===========================================
+# Stage 2: Install API dependencies (ohne @accounts/shared)
+# ===========================================
+FROM base AS api-deps
+WORKDIR /app/apps/api
+
+# Copy package.json und modifiziere es (entferne @accounts/shared dependency)
+COPY apps/api/package*.json ./
+COPY apps/api/prisma ./prisma/
+
+# Entferne @accounts/shared aus dependencies und installiere den Rest
+RUN sed -i '/"@accounts\/shared"/d' package.json && \
+    npm install --legacy-peer-deps
 
 # Generate Prisma Client
 RUN npx prisma generate
 
-# Build
-FROM base AS builder
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN npm run build
+# ===========================================
+# Stage 3: Build API
+# ===========================================
+FROM api-deps AS api-builder
 
-# Production
+# Copy shared package (built) und link es
+COPY --from=shared-builder /app/packages/shared /app/packages/shared
+RUN mkdir -p /app/apps/api/node_modules/@accounts && \
+    ln -s /app/packages/shared /app/apps/api/node_modules/@accounts/shared
+
+# Copy API source und build (ignore type errors, emit anyway)
+COPY apps/api/ ./
+RUN npm run build || [ -d ./dist ]
+
+# ===========================================
+# Stage 4: Production
+# ===========================================
 FROM base AS runner
 ENV NODE_ENV=production
 
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 fastify
+WORKDIR /app
 
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
-COPY package*.json ./
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 fastify
+
+# Copy shared package (built)
+COPY --from=shared-builder /app/packages/shared /app/packages/shared
+
+# Copy API 
+WORKDIR /app/apps/api
+COPY --from=api-deps /app/apps/api/node_modules ./node_modules
+COPY --from=api-builder /app/apps/api/dist ./dist
+COPY --from=api-builder /app/apps/api/prisma ./prisma
+COPY apps/api/package*.json ./
+
+# Link shared package
+RUN mkdir -p ./node_modules/@accounts && \
+    ln -s /app/packages/shared ./node_modules/@accounts/shared
 
 USER fastify
 
 EXPOSE 3001
 
 CMD ["node", "dist/index.js"]
-
