@@ -1,0 +1,56 @@
+import { config } from 'dotenv';
+
+// Load environment variables
+config();
+
+export const env = {
+  // Server
+  NODE_ENV: process.env.NODE_ENV || 'development',
+  PORT: parseInt(process.env.PORT || '3001', 10),
+  HOST: process.env.HOST || '0.0.0.0',
+  
+  // Database
+  DATABASE_URL: process.env.DATABASE_URL || 'postgresql://accounts:accounts@localhost:5432/accounts_db',
+  
+  // Clerk
+  CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY || '',
+  CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY || '',
+  
+  // External Services
+  PAYMENTS_API_URL: process.env.PAYMENTS_API_URL || 'https://payments.mojo-institut.de/api/v1',
+  PAYMENTS_API_KEY: process.env.PAYMENTS_API_KEY || '',
+  CRM_API_URL: process.env.CRM_API_URL || 'https://kontakte.mojo-institut.de/api/v1',
+  CRM_API_KEY: process.env.CRM_API_KEY || '',
+  
+  // Webhooks
+  WEBHOOK_SECRET_PAYMENTS: process.env.WEBHOOK_SECRET_PAYMENTS || 'dev-webhook-secret-payments',
+  WEBHOOK_SECRET_CRM: process.env.WEBHOOK_SECRET_CRM || 'dev-webhook-secret-crm',
+  
+  // Mock Mode (for local development)
+  MOCK_EXTERNAL_SERVICES: process.env.MOCK_EXTERNAL_SERVICES === 'true',
+  
+  // Frontend URL (for CORS)
+  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
+  
+  // Email (for invitations)
+  EMAIL_FROM: process.env.EMAIL_FROM || 'noreply@mojo-institut.de',
+  SENDGRID_API_KEY: process.env.SENDGRID_API_KEY || '',
+};
+
+export function validateEnv(): void {
+  const required: (keyof typeof env)[] = ['DATABASE_URL'];
+  
+  // In production, require Clerk keys
+  if (env.NODE_ENV === 'production') {
+    required.push('CLERK_SECRET_KEY', 'CLERK_PUBLISHABLE_KEY');
+  }
+  
+  const missing = required.filter((key) => !env[key]);
+  
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+}
+
+export default env;
+
