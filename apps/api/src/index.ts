@@ -16,6 +16,8 @@ import billingRoutes from './routes/billing.js';
 import entitlementsRoutes from './routes/entitlements.js';
 import dataRoutes from './routes/data.js';
 import webhooksRoutes from './routes/webhooks.js';
+import clerkWebhooksRoutes from './routes/clerk-webhooks.js';
+import internalRoutes from './routes/internal.js';
 
 // Validate environment variables
 try {
@@ -63,8 +65,14 @@ async function registerRoutes(): Promise<void> {
   // Public routes (no auth required)
   await fastify.register(healthRoutes, { prefix: '/api/v1' });
   
-  // Webhook routes (special auth)
+  // Webhook routes (special auth - signature verification)
   await fastify.register(webhooksRoutes, { prefix: '/api/v1/webhooks' });
+  
+  // Clerk Webhook route (Svix signature verification)
+  await fastify.register(clerkWebhooksRoutes, { prefix: '/api/v1/webhooks' });
+  
+  // Internal API routes (service-to-service, token auth)
+  await fastify.register(internalRoutes, { prefix: '/api/internal' });
 
   // Protected routes (auth required)
   await fastify.register(async (protectedRoutes) => {

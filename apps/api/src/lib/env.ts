@@ -15,6 +15,7 @@ export const env = {
   // Clerk
   CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY || '',
   CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY || '',
+  CLERK_WEBHOOK_SECRET: process.env.CLERK_WEBHOOK_SECRET || '',
   
   // External Services
   PAYMENTS_API_URL: process.env.PAYMENTS_API_URL || 'https://payments.mojo-institut.de/api/v1',
@@ -25,6 +26,9 @@ export const env = {
   // Webhooks
   WEBHOOK_SECRET_PAYMENTS: process.env.WEBHOOK_SECRET_PAYMENTS || 'dev-webhook-secret-payments',
   WEBHOOK_SECRET_CRM: process.env.WEBHOOK_SECRET_CRM || 'dev-webhook-secret-crm',
+  
+  // Internal API (Service-to-Service)
+  INTERNAL_API_SECRET: process.env.INTERNAL_API_SECRET || 'dev-internal-api-secret',
   
   // Mock Mode (for local development)
   MOCK_EXTERNAL_SERVICES: process.env.MOCK_EXTERNAL_SERVICES === 'true',
