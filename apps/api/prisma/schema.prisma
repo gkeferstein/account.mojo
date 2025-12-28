@@ -15,14 +15,17 @@ datasource db {
 // ============================================
 
 model User {
-  id           String   @id @default(uuid())
-  clerkUserId  String   @unique @map("clerk_user_id")
-  email        String   @unique
-  firstName    String?  @map("first_name")
-  lastName     String?  @map("last_name")
-  avatarUrl    String?  @map("avatar_url")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id           String        @id @default(uuid())
+  clerkUserId  String        @unique @map("clerk_user_id")
+  email        String        @unique
+  firstName    String?       @map("first_name")
+  lastName     String?       @map("last_name")
+  avatarUrl    String?       @map("avatar_url")
+  platformRole PlatformRole? @map("platform_role")
+  metadata     Json?         @map("metadata")
+  deletedAt    DateTime?     @map("deleted_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
 
   // Relations
   memberships      TenantMembership[]
@@ -32,7 +35,10 @@ model User {
   preferences      Preferences[]
   auditLogs        AuditLog[]
   dataRequests     DataRequest[]
+  ownedTenants     Tenant[] @relation("TenantOwner")
 
+  @@index([email])
+  @@index([platformRole])
   @@map("users")
 }
 
@@ -41,17 +47,20 @@ model User {
 // ============================================
 
 model Tenant {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   name        String
-  slug        String   @unique
-  clerkOrgId  String?  @unique @map("clerk_org_id")
-  logoUrl     String?  @map("logo_url")
-  isPersonal  Boolean  @default(false) @map("is_personal")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  slug        String    @unique
+  clerkOrgId  String?   @unique @map("clerk_org_id")
+  logoUrl     String?   @map("logo_url")
+  isPersonal  Boolean   @default(false) @map("is_personal")
+  ownerUserId String?   @map("owner_user_id")
+  metadata    Json?     @map("metadata")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
   // Relations
+  owner             User? @relation("TenantOwner", fields: [ownerUserId], references: [id])
   memberships       TenantMembership[]
   invitations       TenantInvitation[]
   profileCaches     ProfileCache[]
@@ -63,17 +72,19 @@ model Tenant {
 
   @@index([clerkOrgId])
   @@index([slug])
+  @@index([ownerUserId])
   @@map("tenants")
 }
 
 model TenantMembership {
-  id        String           @id @default(uuid())
-  tenantId  String           @map("tenant_id")
-  userId    String           @map("user_id")
-  role      TenantRole       @default(member)
-  status    MembershipStatus @default(active)
-  createdAt DateTime         @default(now()) @map("created_at")
-  updatedAt DateTime         @updatedAt @map("updated_at")
+  id                String           @id @default(uuid())
+  clerkMembershipId String?          @unique @map("clerk_membership_id")
+  tenantId          String           @map("tenant_id")
+  userId            String           @map("user_id")
+  role              TenantRole       @default(member)
+  status            MembershipStatus @default(active)
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
 
   // Relations
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -82,6 +93,7 @@ model TenantMembership {
   @@unique([tenantId, userId])
   @@index([tenantId])
   @@index([userId])
+  @@index([clerkMembershipId])
   @@map("tenant_memberships")
 }
 
@@ -230,8 +242,45 @@ model DataRequest {
 }
 
 // ============================================
+// Webhook Event Log (Identity Hub)
+// ============================================
+
+model WebhookEvent {
+  id           String        @id @default(uuid())
+  eventId      String        @unique @map("event_id")
+  eventType    String        @map("event_type")
+  source       String        @default("clerk")
+  payload      Json
+  status       WebhookStatus @default(pending)
+  errorMessage String?       @map("error_message")
+  attemptCount Int           @default(0) @map("attempt_count")
+  processedAt  DateTime?     @map("processed_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  @@index([eventType])
+  @@index([status])
+  @@index([source])
+  @@index([createdAt])
+  @@map("webhook_events")
+}
+
+// ============================================
 // Enums
 // ============================================
+
+enum WebhookStatus {
+  pending
+  processing
+  success
+  failed
+}
+
+enum PlatformRole {
+  platform_admin
+  platform_support
+  platform_finance
+  platform_content_admin
+}
 
 enum TenantRole {
   owner

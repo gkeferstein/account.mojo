@@ -27,13 +27,15 @@ const clerkClient = env.CLERK_SECRET_KEY
   : null;
 
 // Get or create user from Clerk JWT
+// NOTE: Personal tenant provisioning is now handled via Clerk webhooks (clerk-webhooks.ts)
+// This function only creates/updates the user record for JWT-based auth
 async function getOrCreateUser(clerkUserId: string, email: string, firstName?: string | null, lastName?: string | null, avatarUrl?: string | null): Promise<User> {
   let user = await prisma.user.findUnique({
     where: { clerkUserId },
   });
 
   if (!user) {
-    // Create new user
+    // Create new user (personal tenant will be created via webhook)
     user = await prisma.user.create({
       data: {
         clerkUserId,
@@ -43,36 +45,10 @@ async function getOrCreateUser(clerkUserId: string, email: string, firstName?: s
         avatarUrl,
       },
     });
-
-    // Create personal tenant for new user
-    const personalTenant = await prisma.tenant.create({
-      data: {
-        name: `${firstName || email.split('@')[0]}'s Account`,
-        slug: `personal-${clerkUserId.replace('user_', '')}`,
-        isPersonal: true,
-      },
-    });
-
-    // Create owner membership
-    await prisma.tenantMembership.create({
-      data: {
-        tenantId: personalTenant.id,
-        userId: user.id,
-        role: 'owner',
-        status: 'active',
-      },
-    });
-
-    // Create default preferences
-    await prisma.preferences.create({
-      data: {
-        tenantId: personalTenant.id,
-        userId: user.id,
-      },
-    });
+    console.log(`📝 User created via JWT auth: ${clerkUserId} (webhook will provision personal org)`);
   } else {
     // Update user info if changed
-    if (user.email !== email || user.firstName !== firstName || user.lastName !== lastName) {
+    if (user.email !== email || user.firstName !== firstName || user.lastName !== lastName || user.avatarUrl !== avatarUrl) {
       user = await prisma.user.update({
         where: { id: user.id },
         data: { email, firstName, lastName, avatarUrl },
@@ -99,6 +75,7 @@ async function getUserTenants(userId: string): Promise<Array<Tenant & { membersh
     ...m.tenant,
     membership: {
       id: m.id,
+      clerkMembershipId: m.clerkMembershipId,
       tenantId: m.tenantId,
       userId: m.userId,
       role: m.role,
@@ -109,43 +86,19 @@ async function getUserTenants(userId: string): Promise<Array<Tenant & { membersh
   }));
 }
 
-// Map Clerk org to tenant (create if needed)
-async function mapClerkOrgToTenant(clerkOrgId: string, user: User): Promise<Tenant | null> {
+// Map Clerk org to tenant (lookup only - creation happens via webhook)
+// NOTE: Tenant and membership creation is now handled via Clerk webhooks (clerk-webhooks.ts)
+async function mapClerkOrgToTenant(clerkOrgId: string, _user: User): Promise<Tenant | null> {
   if (!clerkOrgId) return null;
 
-  let tenant = await prisma.tenant.findUnique({
+  const tenant = await prisma.tenant.findUnique({
     where: { clerkOrgId },
   });
 
-  if (!tenant && clerkClient) {
-    // Get org details from Clerk
-    try {
-      const org = await clerkClient.organizations.getOrganization({ organizationId: clerkOrgId });
-      
-      // Create tenant for this org
-      tenant = await prisma.tenant.create({
-        data: {
-          name: org.name,
-          slug: org.slug || `org-${clerkOrgId.replace('org_', '')}`,
-          clerkOrgId,
-          logoUrl: org.imageUrl,
-          isPersonal: false,
-        },
-      });
-
-      // Create owner membership for current user
-      await prisma.tenantMembership.create({
-        data: {
-          tenantId: tenant.id,
-          userId: user.id,
-          role: 'owner',
-          status: 'active',
-        },
-      });
-    } catch (error) {
-      console.error('Failed to fetch Clerk organization:', error);
-      return null;
-    }
+  if (!tenant) {
+    // Tenant should be created via webhook - log warning if not found
+    console.warn(`⚠️ Tenant not found for clerkOrgId: ${clerkOrgId} (should be created via webhook)`);
+    return null;
   }
 
   return tenant;
