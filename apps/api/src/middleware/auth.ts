@@ -1,13 +1,25 @@
+/**
+ * Authentication Middleware for accounts.mojo
+ * 
+ * Validates Clerk JWT tokens and resolves tenant context.
+ * accounts.mojo is the SSOT for tenant data - other services sync from here.
+ * 
+ * Uses @mojo/tenant for consistent tenant types across services.
+ */
+
 import { FastifyRequest, FastifyReply, FastifyInstance } from 'fastify';
 import { createClerkClient, verifyToken } from '@clerk/backend';
 import prisma from '../lib/prisma.js';
 import env from '../lib/env.js';
 import type { User, Tenant, TenantMembership, TenantRole } from '@prisma/client';
+import { Tenant as MojoTenant, TenantContext, TENANT_HEADERS, createTenantHeaders } from '@mojo/tenant';
 
 // Extend Fastify request with auth context
 declare module 'fastify' {
   interface FastifyRequest {
     auth: AuthContext;
+    /** @mojo/tenant compatible tenant context */
+    tenantContext: TenantContext | null;
   }
 }
 
@@ -25,6 +37,22 @@ export interface AuthContext {
 const clerkClient = env.CLERK_SECRET_KEY 
   ? createClerkClient({ secretKey: env.CLERK_SECRET_KEY })
   : null;
+
+/**
+ * Convert Prisma Tenant to @mojo/tenant Tenant interface
+ */
+function toMojoTenant(tenant: Tenant): MojoTenant {
+  return {
+    id: tenant.id,
+    slug: tenant.slug,
+    name: tenant.name,
+    clerkOrgId: tenant.clerkOrgId ?? undefined,
+    isPersonal: tenant.isPersonal ?? false,
+    status: 'active', // accounts.mojo doesn't have status yet
+    createdAt: tenant.createdAt,
+    updatedAt: tenant.updatedAt,
+  };
+}
 
 // Get or create user from Clerk JWT
 // NOTE: Personal tenant provisioning is now handled via Clerk webhooks (clerk-webhooks.ts)
@@ -134,6 +162,13 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
           activeMembership: activeTenant?.membership || null,
           tenants,
         };
+
+        // Set @mojo/tenant compatible context
+        request.tenantContext = activeTenant ? {
+          tenant: toMojoTenant(activeTenant),
+          source: 'default',
+        } : null;
+
         return;
       }
     }
@@ -197,6 +232,14 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
       activeMembership,
       tenants,
     };
+
+    // Set @mojo/tenant compatible context
+    request.tenantContext = activeTenant ? {
+      tenant: toMojoTenant(activeTenant),
+      source: clerkOrgId ? 'jwt_org_id' : 'default',
+      rawIdentifier: clerkOrgId || undefined,
+    } : null;
+
   } catch (error) {
     console.error('Auth error:', error);
     return reply.status(401).send({ error: 'Unauthorized', message: 'Invalid token' });
@@ -206,7 +249,15 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
 // Register auth decorator
 export function registerAuthPlugin(fastify: FastifyInstance): void {
   fastify.decorateRequest('auth', null);
+  fastify.decorateRequest('tenantContext', null);
+}
+
+/**
+ * Create headers for calling other MOJO services
+ * Uses the standardized @mojo/tenant header format
+ */
+export function createServiceHeaders(tenant: Tenant): Record<string, string> {
+  return createTenantHeaders(toMojoTenant(tenant), 'accounts.mojo');
 }
 
 export default authMiddleware;
-

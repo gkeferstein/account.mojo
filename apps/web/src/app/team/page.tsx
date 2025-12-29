@@ -7,16 +7,14 @@ import {
   Users,
   UserPlus,
   Mail,
-  MoreVertical,
   Trash2,
   Shield,
   Clock,
-  AlertCircle,
 } from "lucide-react";
-import { Sidebar } from "@/components/Sidebar";
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useTenant } from "@/providers/TenantProvider";
 import { accountsApi } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -162,144 +160,189 @@ export default function TeamPage() {
 
   if (activeTenant?.isPersonal) {
     return (
-      <div className="min-h-screen flex">
-        <Sidebar />
-        <main className="flex-1 p-4 lg:p-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center py-20"
-          >
-            <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Persönliches Konto</h2>
-            <p className="text-muted-foreground max-w-md mx-auto">
-              Team-Verwaltung ist nur für Organisationen verfügbar.
-              Erstelle eine Organisation, um ein Team zu verwalten.
-            </p>
-          </motion.div>
-        </main>
-      </div>
+      <DashboardLayout>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center py-20"
+        >
+          <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+          <h2 className="text-2xl font-bold mb-2">Persönliches Konto</h2>
+          <p className="text-muted-foreground max-w-md mx-auto">
+            Team-Verwaltung ist nur für Organisationen verfügbar.
+            Erstelle eine Organisation, um ein Team zu verwalten.
+          </p>
+        </motion.div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen flex">
-      <Sidebar />
+    <DashboardLayout>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8 flex items-center justify-between"
+      >
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Team</h1>
+          <p className="text-muted-foreground">
+            Verwalte die Mitglieder von {activeTenant?.name}.
+          </p>
+        </div>
+        <Button onClick={() => setShowInviteForm(!showInviteForm)}>
+          <UserPlus className="w-4 h-4 mr-2" />
+          Mitglied einladen
+        </Button>
+      </motion.div>
 
-      <main className="flex-1 p-4 lg:p-8">
+      {/* Invite Form */}
+      {showInviteForm && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          className="mb-6"
+        >
+          <Card className="bg-card/50 border-primary/20">
+            <CardContent className="p-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <Label>E-Mail-Adresse</Label>
+                  <Input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="name@example.com"
+                  />
+                </div>
+                <div className="w-full md:w-48">
+                  <Label>Rolle</Label>
+                  <select
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value)}
+                    className="form-input"
+                  >
+                    <option value="member">Mitglied</option>
+                    <option value="admin">Administrator</option>
+                    <option value="billing_admin">Billing Admin</option>
+                    <option value="support_readonly">Support (Nur Lesen)</option>
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <Button onClick={handleInvite} disabled={isInviting}>
+                    {isInviting ? "Laden..." : "Einladen"}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      <div className="grid grid-cols-1 gap-6">
+        {/* Members */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8 flex items-center justify-between"
+          transition={{ delay: 0.1 }}
         >
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Team</h1>
-            <p className="text-muted-foreground">
-              Verwalte die Mitglieder von {activeTenant?.name}.
-            </p>
-          </div>
-          <Button onClick={() => setShowInviteForm(!showInviteForm)}>
-            <UserPlus className="w-4 h-4 mr-2" />
-            Mitglied einladen
-          </Button>
+          <Card className="bg-card/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Mitglieder ({members.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {members.map((member) => (
+                  <div
+                    key={member.id}
+                    className="flex items-center justify-between p-4 rounded-lg bg-secondary/30"
+                  >
+                    <div className="flex items-center gap-4">
+                      <Avatar>
+                        <AvatarImage src={member.avatarUrl || undefined} />
+                        <AvatarFallback>
+                          {getInitials(member.firstName, member.lastName, member.email)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">
+                          {member.firstName} {member.lastName}
+                          {member.userId === user?.id && (
+                            <span className="ml-2 text-xs text-muted-foreground">(Du)</span>
+                          )}
+                        </p>
+                        <p className="text-sm text-muted-foreground">{member.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="badge badge-primary">
+                        <Shield className="w-3 h-3 mr-1" />
+                        {getRoleDisplayName(member.role)}
+                      </span>
+                      {member.userId !== user?.id && member.role !== "owner" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveMember(member.id)}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
 
-        {/* Invite Form */}
-        {showInviteForm && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mb-6"
-          >
-            <Card className="bg-card/50 border-primary/20">
-              <CardContent className="p-6">
-                <div className="flex flex-col md:flex-row gap-4">
-                  <div className="flex-1">
-                    <Label>E-Mail-Adresse</Label>
-                    <Input
-                      type="email"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      placeholder="name@example.com"
-                    />
-                  </div>
-                  <div className="w-full md:w-48">
-                    <Label>Rolle</Label>
-                    <select
-                      value={inviteRole}
-                      onChange={(e) => setInviteRole(e.target.value)}
-                      className="form-input"
-                    >
-                      <option value="member">Mitglied</option>
-                      <option value="admin">Administrator</option>
-                      <option value="billing_admin">Billing Admin</option>
-                      <option value="support_readonly">Support (Nur Lesen)</option>
-                    </select>
-                  </div>
-                  <div className="flex items-end">
-                    <Button onClick={handleInvite} loading={isInviting}>
-                      Einladen
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-
-        <div className="grid grid-cols-1 gap-6">
-          {/* Members */}
+        {/* Pending Invitations */}
+        {invitations.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+            transition={{ delay: 0.2 }}
           >
             <Card className="bg-card/50">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  Mitglieder ({members.length})
+                  <Mail className="w-5 h-5" />
+                  Ausstehende Einladungen ({invitations.length})
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {members.map((member) => (
+                  {invitations.map((invitation) => (
                     <div
-                      key={member.id}
-                      className="flex items-center justify-between p-4 rounded-lg bg-secondary/30"
+                      key={invitation.id}
+                      className="flex items-center justify-between p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20"
                     >
                       <div className="flex items-center gap-4">
-                        <Avatar>
-                          <AvatarImage src={member.avatarUrl || undefined} />
-                          <AvatarFallback>
-                            {getInitials(member.firstName, member.lastName, member.email)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                          <Clock className="w-5 h-5 text-yellow-500" />
+                        </div>
                         <div>
-                          <p className="font-medium">
-                            {member.firstName} {member.lastName}
-                            {member.userId === user?.id && (
-                              <span className="ml-2 text-xs text-muted-foreground">(Du)</span>
-                            )}
+                          <p className="font-medium">{invitation.email}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Eingeladen {formatRelativeTime(invitation.createdAt)}
                           </p>
-                          <p className="text-sm text-muted-foreground">{member.email}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
-                        <span className="badge badge-primary">
-                          <Shield className="w-3 h-3 mr-1" />
-                          {getRoleDisplayName(member.role)}
+                        <span className="badge badge-warning">
+                          {getRoleDisplayName(invitation.role)}
                         </span>
-                        {member.userId !== user?.id && member.role !== "owner" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRemoveMember(member.id)}
-                          >
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRevokeInvitation(invitation.id)}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -307,62 +350,8 @@ export default function TeamPage() {
               </CardContent>
             </Card>
           </motion.div>
-
-          {/* Pending Invitations */}
-          {invitations.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              <Card className="bg-card/50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Mail className="w-5 h-5" />
-                    Ausstehende Einladungen ({invitations.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {invitations.map((invitation) => (
-                      <div
-                        key={invitation.id}
-                        className="flex items-center justify-between p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center">
-                            <Clock className="w-5 h-5 text-yellow-500" />
-                          </div>
-                          <div>
-                            <p className="font-medium">{invitation.email}</p>
-                            <p className="text-sm text-muted-foreground">
-                              Eingeladen {formatRelativeTime(invitation.createdAt)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <span className="badge badge-warning">
-                            {getRoleDisplayName(invitation.role)}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRevokeInvitation(invitation.id)}
-                          >
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </div>
-      </main>
-    </div>
+        )}
+      </div>
+    </DashboardLayout>
   );
 }
-
-

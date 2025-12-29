@@ -1,28 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth, SignInButton, SignedIn, SignedOut } from "@clerk/nextjs";
+import { useAuth } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import {
   CreditCard,
   Users,
   Shield,
   ChevronRight,
-  Sparkles,
   Award,
   BookOpen,
   Bell,
-  ArrowRight,
   Database,
 } from "lucide-react";
-import { Sidebar } from "@/components/Sidebar";
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useTenant } from "@/providers/TenantProvider";
 import { accountsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getInitials, formatDate, getStatusDisplayName, formatCurrency } from "@/lib/utils";
+import { getInitials, formatDate, getStatusDisplayName } from "@/lib/utils";
 import Link from "next/link";
 
 interface DashboardData {
@@ -79,306 +77,271 @@ export default function DashboardPage() {
   ].filter(Boolean).length * 33 : 0;
 
   return (
-    <>
-      <SignedOut>
-        <div className="min-h-screen flex items-center justify-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center"
-          >
-            <div className="w-20 h-20 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <Sparkles className="w-10 h-10 text-primary" />
-            </div>
-            <h1 className="text-4xl font-bold mb-4 gradient-text">
-              MOJO Accounts
-            </h1>
-            <p className="text-muted-foreground mb-8 max-w-md">
-              Verwalte dein MOJO Konto, Abonnements und Team-Mitgliedschaften an einem Ort.
-            </p>
-            <SignInButton mode="modal">
-              <Button size="lg" className="gap-2">
-                Anmelden
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </SignInButton>
-          </motion.div>
-        </div>
-      </SignedOut>
+    <DashboardLayout>
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8"
+      >
+        <h1 className="text-3xl font-bold mb-2">
+          Willkommen zurück{user?.firstName ? `, ${user.firstName}` : ""}! 👋
+        </h1>
+        <p className="text-muted-foreground">
+          Hier ist eine Übersicht deines MOJO Kontos.
+        </p>
+      </motion.div>
 
-      <SignedIn>
-        <div className="min-h-screen flex">
-          <Sidebar />
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <Card className="bg-card/50 card-hover">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
+                  <CreditCard className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Status</p>
+                  <p className="text-lg font-semibold">
+                    {data?.subscription
+                      ? getStatusDisplayName(data.subscription.status)
+                      : "Kein Abo"}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-          <main className="flex-1 p-4 lg:p-8">
-            {/* Header */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-8"
-            >
-              <h1 className="text-3xl font-bold mb-2">
-                Willkommen zurück{user?.firstName ? `, ${user.firstName}` : ""}! 👋
-              </h1>
-              <p className="text-muted-foreground">
-                Hier ist eine Übersicht deines MOJO Kontos.
-              </p>
-            </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <Card className="bg-card/50 card-hover">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center">
+                  <Award className="w-6 h-6 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Berechtigungen</p>
+                  <p className="text-lg font-semibold">
+                    {data?.entitlements || 0} aktiv
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-              >
-                <Card className="bg-card/50 card-hover">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                        <CreditCard className="w-6 h-6 text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Status</p>
-                        <p className="text-lg font-semibold">
-                          {data?.subscription
-                            ? getStatusDisplayName(data.subscription.status)
-                            : "Kein Abo"}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <Card className="bg-card/50 card-hover">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center">
+                  <Users className="w-6 h-6 text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Team</p>
+                  <p className="text-lg font-semibold">
+                    {activeTenant?.isPersonal ? "Persönlich" : `${data?.teamMembers || 1} Mitglieder`}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-              >
-                <Card className="bg-card/50 card-hover">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center">
-                        <Award className="w-6 h-6 text-green-500" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Berechtigungen</p>
-                        <p className="text-lg font-semibold">
-                          {data?.entitlements || 0} aktiv
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
+          <Card className="bg-card/50 card-hover">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center">
+                  <Shield className="w-6 h-6 text-purple-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Sicherheit</p>
+                  <p className="text-lg font-semibold">Geschützt</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-              >
-                <Card className="bg-card/50 card-hover">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center">
-                        <Users className="w-6 h-6 text-blue-500" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Team</p>
-                        <p className="text-lg font-semibold">
-                          {activeTenant?.isPersonal ? "Persönlich" : `${data?.teamMembers || 1} Mitglieder`}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-              >
-                <Card className="bg-card/50 card-hover">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center">
-                        <Shield className="w-6 h-6 text-purple-500" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Sicherheit</p>
-                        <p className="text-lg font-semibold">Geschützt</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Profile Completeness */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="lg:col-span-2"
-              >
-                <Card className="bg-card/50">
-                  <CardHeader>
-                    <CardTitle>Profil vervollständigen</CardTitle>
-                    <CardDescription>
-                      Vervollständige dein Profil für ein besseres Erlebnis
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Fortschritt</span>
-                        <span className="font-medium">{profileComplete}%</span>
-                      </div>
-                      <Progress value={profileComplete} />
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                        <Link href="/profile">
-                          <div className="p-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors cursor-pointer">
-                            <div className="flex items-center gap-3">
-                              <Avatar className="h-10 w-10">
-                                <AvatarImage src={user?.avatarUrl || undefined} />
-                                <AvatarFallback>
-                                  {getInitials(user?.firstName, user?.lastName, user?.email)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="flex-1">
-                                <p className="text-sm font-medium">Profil bearbeiten</p>
-                                <p className="text-xs text-muted-foreground">Name & Kontakt</p>
-                              </div>
-                              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                            </div>
-                          </div>
-                        </Link>
-
-                        <Link href="/security">
-                          <div className="p-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors cursor-pointer">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                                <Shield className="w-5 h-5 text-primary" />
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-sm font-medium">Sicherheit</p>
-                                <p className="text-xs text-muted-foreground">2FA & Passwort</p>
-                              </div>
-                              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                            </div>
-                          </div>
-                        </Link>
-
-                        <Link href="/preferences">
-                          <div className="p-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors cursor-pointer">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                                <Bell className="w-5 h-5 text-primary" />
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-sm font-medium">Benachrichtigungen</p>
-                                <p className="text-xs text-muted-foreground">E-Mail & Push</p>
-                              </div>
-                              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                            </div>
-                          </div>
-                        </Link>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Profile Completeness */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="lg:col-span-2"
+        >
+          <Card className="bg-card/50">
+            <CardHeader>
+              <CardTitle>Profil vervollständigen</CardTitle>
+              <CardDescription>
+                Vervollständige dein Profil für ein besseres Erlebnis
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Fortschritt</span>
+                  <span className="font-medium">{profileComplete}%</span>
+                </div>
+                <Progress value={profileComplete} />
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                  <Link href="/profile">
+                    <div className="p-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors cursor-pointer">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={user?.avatarUrl || undefined} />
+                          <AvatarFallback>
+                            {getInitials(user?.firstName, user?.lastName, user?.email)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">Profil bearbeiten</p>
+                          <p className="text-xs text-muted-foreground">Name & Kontakt</p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
+                  </Link>
 
-              {/* Quick Actions */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-              >
-                <Card className="bg-card/50 h-full">
-                  <CardHeader>
-                    <CardTitle>Schnellzugriff</CardTitle>
-                    <CardDescription>
-                      Häufig verwendete Funktionen
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <Link href="/membership">
-                      <Button variant="outline" className="w-full justify-start gap-3">
-                        <CreditCard className="w-4 h-4" />
-                        Abonnement verwalten
-                      </Button>
-                    </Link>
-                    
-                    {!activeTenant?.isPersonal && (
-                      <Link href="/team">
-                        <Button variant="outline" className="w-full justify-start gap-3">
-                          <Users className="w-4 h-4" />
-                          Team verwalten
-                        </Button>
-                      </Link>
-                    )}
-                    
-                    <Link href="/data">
-                      <Button variant="outline" className="w-full justify-start gap-3">
-                        <Database className="w-4 h-4" />
-                        Daten exportieren
-                      </Button>
-                    </Link>
-                    
-                    <a
-                      href="https://campus.mojo-institut.de"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Button variant="outline" className="w-full justify-start gap-3">
-                        <BookOpen className="w-4 h-4" />
-                        Zum MOJO Campus
-                      </Button>
-                    </a>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            </div>
-
-            {/* Subscription Banner */}
-            {data?.subscription && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.7 }}
-                className="mt-6"
-              >
-                <Card className="bg-gradient-to-r from-primary/10 to-purple-500/10 border-primary/20">
-                  <CardContent className="p-6">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div>
-                        <h3 className="font-semibold text-lg">
-                          {data.subscription.planName}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          Aktiv bis {formatDate(data.subscription.currentPeriodEnd)}
-                        </p>
+                  <Link href="/security">
+                    <div className="p-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors cursor-pointer">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                          <Shield className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">Sicherheit</p>
+                          <p className="text-xs text-muted-foreground">2FA & Passwort</p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
                       </div>
-                      <Link href="/membership">
-                        <Button>
-                          Verwalten
-                          <ChevronRight className="w-4 h-4 ml-2" />
-                        </Button>
-                      </Link>
                     </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )}
-          </main>
-        </div>
-      </SignedIn>
-    </>
+                  </Link>
+
+                  <Link href="/preferences">
+                    <div className="p-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors cursor-pointer">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                          <Bell className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">Benachrichtigungen</p>
+                          <p className="text-xs text-muted-foreground">E-Mail & Push</p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      </div>
+                    </div>
+                  </Link>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Quick Actions */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+        >
+          <Card className="bg-card/50 h-full">
+            <CardHeader>
+              <CardTitle>Schnellzugriff</CardTitle>
+              <CardDescription>
+                Häufig verwendete Funktionen
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Link href="/membership">
+                <Button variant="outline" className="w-full justify-start gap-3">
+                  <CreditCard className="w-4 h-4" />
+                  Abonnement verwalten
+                </Button>
+              </Link>
+              
+              {!activeTenant?.isPersonal && (
+                <Link href="/team">
+                  <Button variant="outline" className="w-full justify-start gap-3">
+                    <Users className="w-4 h-4" />
+                    Team verwalten
+                  </Button>
+                </Link>
+              )}
+              
+              <Link href="/data">
+                <Button variant="outline" className="w-full justify-start gap-3">
+                  <Database className="w-4 h-4" />
+                  Daten exportieren
+                </Button>
+              </Link>
+              
+              <a
+                href="https://campus.mojo-institut.de"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button variant="outline" className="w-full justify-start gap-3">
+                  <BookOpen className="w-4 h-4" />
+                  Zum MOJO Campus
+                </Button>
+              </a>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+
+      {/* Subscription Banner */}
+      {data?.subscription && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7 }}
+          className="mt-6"
+        >
+          <Card className="bg-gradient-to-r from-primary/10 to-purple-500/10 border-primary/20">
+            <CardContent className="p-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-semibold text-lg">
+                    {data.subscription.planName}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Aktiv bis {formatDate(data.subscription.currentPeriodEnd)}
+                  </p>
+                </div>
+                <Link href="/membership">
+                  <Button>
+                    Verwalten
+                    <ChevronRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+    </DashboardLayout>
   );
 }
-

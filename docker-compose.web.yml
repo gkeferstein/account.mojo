@@ -1,0 +1,37 @@
+services:
+  accounts-web:
+    build:
+      context: /root/projects
+      dockerfile: accounts.mojo/apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://dev.account.mojo-institut.de
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+    container_name: accounts-web
+    environment:
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      NEXT_PUBLIC_API_URL: https://dev.account.mojo-institut.de
+    expose:
+      - "3000"
+    networks:
+      - mojo-accounts-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mojo-accounts-network"
+      - "traefik.http.routers.accounts-web.rule=Host(`dev.account.mojo-institut.de`)"
+      - "traefik.http.routers.accounts-web.entrypoints=websecure"
+      - "traefik.http.routers.accounts-web.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.accounts-web.service=accounts-web-service"
+      - "traefik.http.services.accounts-web-service.loadbalancer.server.port=3000"
+
+networks:
+  mojo-accounts-network:
+    external: true

@@ -1,5 +1,6 @@
 import env from '../lib/env.js';
 import type { Profile, Consent } from '@accounts/shared';
+import { TENANT_HEADERS } from '@mojo/tenant';
 
 interface CrmClientConfig {
   baseUrl: string;
@@ -89,8 +90,9 @@ export class CrmClient {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${this.config.apiKey}`,
-        'x-tenant-slug': this.config.tenantSlug,
-        'x-service-name': 'accounts.mojo',
+        // Use standardized @mojo/tenant headers
+        [TENANT_HEADERS.TENANT_SLUG]: this.config.tenantSlug,
+        [TENANT_HEADERS.SERVICE_NAME]: 'accounts.mojo',
         ...options.headers,
       },
     });
