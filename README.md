@@ -2,6 +2,11 @@
 
 Das zentrale Self-Service-Portal für MOJO-Kunden zur Verwaltung ihrer digitalen Identität und Abonnements.
 
+**Domain:** accounts.mojo-institut.de  
+**Status:** Production-Ready
+
+---
+
 ## Überblick
 
 MOJO Accounts ist ein Multi-Tenant Account-Management-System mit folgenden Funktionen:
@@ -35,7 +40,7 @@ MOJO Accounts ist ein Multi-Tenant Account-Management-System mit folgenden Funkt
 │                           Externe Services                               │
 ├─────────────────────┬─────────────────────┬──────────────────────────────┤
 │       Clerk         │   payments.mojo     │      kontakte.mojo           │
-│  (Authentifizierung)│    (Billing)        │        (CRM)                 │
+│  (Authentifizierung)│    (Billing)        │        (CRM / SSOT)          │
 └─────────────────────┴─────────────────────┴──────────────────────────────┘
 ```
 
@@ -277,7 +282,7 @@ accounts.mojo/
 | `/api/v1/webhooks/clerk` | Clerk Identity Events | Svix Headers |
 
 **Clerk Webhook Events:**
-- `user.created` - Neuer User → DB-Eintrag + Personal Org
+- `user.created` - Neuer User → DB-Eintrag + Personal Org + kontakte.mojo Sync
 - `user.updated` - User aktualisiert
 - `user.deleted` - User soft-delete
 - `organization.created/updated/deleted` - Org-Sync
@@ -345,200 +350,32 @@ Die RBAC-Middleware (`middleware/rbac.ts`) bietet granulare Berechtigungsprüfun
 
 ## Datenbank-Schema
 
-```mermaid
-erDiagram
-    User ||--o{ TenantMembership : "hat"
-    User ||--o{ ProfileCache : "hat"
-    User ||--o{ BillingCache : "hat"
-    User ||--o{ EntitlementCache : "hat"
-    User ||--o{ Preferences : "hat"
-    User ||--o{ AuditLog : "erzeugt"
-    User ||--o{ DataRequest : "stellt"
-    User ||--o| Tenant : "besitzt"
-    
-    Tenant ||--o{ TenantMembership : "hat"
-    Tenant ||--o{ TenantInvitation : "hat"
-    Tenant ||--o{ ProfileCache : "hat"
-    Tenant ||--o{ BillingCache : "hat"
-    Tenant ||--o{ EntitlementCache : "hat"
-    Tenant ||--o{ Preferences : "hat"
-    Tenant ||--o{ AuditLog : "hat"
-    Tenant ||--o{ DataRequest : "hat"
+### Core Entities
 
-    User {
-        uuid id PK
-        string clerkUserId UK
-        string email UK
-        string firstName
-        string lastName
-        string avatarUrl
-        enum platformRole
-        json metadata
-        datetime deletedAt
-        datetime createdAt
-        datetime updatedAt
-    }
-
-    Tenant {
-        uuid id PK
-        string name
-        string slug UK
-        string clerkOrgId UK
-        string logoUrl
-        boolean isPersonal
-        uuid ownerUserId FK
-        json metadata
-        datetime deletedAt
-        datetime createdAt
-        datetime updatedAt
-    }
-
-    TenantMembership {
-        uuid id PK
-        string clerkMembershipId UK
-        uuid tenantId FK
-        uuid userId FK
-        enum role
-        enum status
-        datetime createdAt
-        datetime updatedAt
-    }
-
-    TenantInvitation {
-        uuid id PK
-        uuid tenantId FK
-        string email
-        enum role
-        string token UK
-        enum status
-        datetime expiresAt
-        datetime acceptedAt
-        datetime createdAt
-    }
-
-    ProfileCache {
-        uuid id PK
-        uuid tenantId FK
-        uuid userId FK
-        json payload
-        datetime updatedAt
-    }
-
-    BillingCache {
-        uuid id PK
-        uuid tenantId FK
-        uuid userId FK
-        json subscription
-        json invoices
-        datetime updatedAt
-    }
-
-    EntitlementCache {
-        uuid id PK
-        uuid tenantId FK
-        uuid userId FK
-        json entitlements
-        datetime updatedAt
-    }
-
-    Preferences {
-        uuid id PK
-        uuid tenantId FK
-        uuid userId FK
-        json payload
-        datetime updatedAt
-    }
-
-    AuditLog {
-        uuid id PK
-        uuid tenantId FK
-        uuid userId FK
-        string action
-        string resourceType
-        string resourceId
-        string ip
-        string userAgent
-        json metadata
-        datetime createdAt
-    }
-
-    DataRequest {
-        uuid id PK
-        uuid tenantId FK
-        uuid userId FK
-        enum type
-        enum status
-        string reason
-        json metadata
-        datetime completedAt
-        string downloadUrl
-        datetime createdAt
-    }
-
-    WebhookEvent {
-        uuid id PK
-        string eventId UK
-        string eventType
-        string source
-        json payload
-        enum status
-        string errorMessage
-        int attemptCount
-        datetime processedAt
-        datetime createdAt
-    }
-```
+| Entity | Beschreibung |
+|--------|--------------|
+| `User` | User mit Clerk ID, E-Mail, Platform-Rolle |
+| `Tenant` | Organisation/Team mit Clerk Org ID |
+| `TenantMembership` | User-Tenant Zuordnung mit Rolle |
+| `TenantInvitation` | Einladungen mit Token und Expiry |
+| `ProfileCache` | Cached Profildaten von kontakte.mojo |
+| `BillingCache` | Cached Billing-Daten von payments.mojo |
+| `EntitlementCache` | Cached Berechtigungen |
+| `Preferences` | User-Einstellungen pro Tenant |
+| `AuditLog` | Audit-Trail für alle Aktionen |
+| `DataRequest` | DSGVO Export/Lösch-Anfragen |
+| `WebhookEvent` | Webhook Event Log für Idempotenz |
 
 ### Enums
 
 ```prisma
-enum PlatformRole {
-  platform_admin
-  platform_support
-  platform_finance
-  platform_content_admin
-}
-
-enum TenantRole {
-  owner
-  admin
-  member
-  billing_admin
-  support_readonly
-}
-
-enum MembershipStatus {
-  active
-  invited
-  suspended
-  removed
-}
-
-enum InvitationStatus {
-  pending
-  accepted
-  expired
-  revoked
-}
-
-enum DataRequestType {
-  export
-  delete
-}
-
-enum DataRequestStatus {
-  pending
-  processing
-  completed
-  failed
-}
-
-enum WebhookStatus {
-  pending
-  processing
-  success
-  failed
-}
+enum PlatformRole { platform_admin, platform_support, platform_finance, platform_content_admin }
+enum TenantRole { owner, admin, member, billing_admin, support_readonly }
+enum MembershipStatus { active, invited, suspended, removed }
+enum InvitationStatus { pending, accepted, expired, revoked }
+enum DataRequestType { export, delete }
+enum DataRequestStatus { pending, processing, completed, failed }
+enum WebhookStatus { pending, processing, success, failed }
 ```
 
 ---
@@ -613,7 +450,6 @@ MOCK_EXTERNAL_SERVICES=true
 Alle wichtigen Aktionen werden in `AuditLog` protokolliert:
 
 ```typescript
-// Beispiel aus services/audit.ts
 await logAuditEvent(request, {
   action: AuditActions.PROFILE_UPDATE,
   resourceType: 'profile',
@@ -635,11 +471,9 @@ await logAuditEvent(request, {
 Clerk Webhooks werden über `WebhookEvent` dedupliziert:
 
 ```typescript
-// Check for duplicate event
 const existingEvent = await prisma.webhookEvent.findUnique({
   where: { eventId: svixId },
 });
-
 if (existingEvent) {
   return reply.send({ received: true, processed: false, reason: 'Duplicate event' });
 }
@@ -810,4 +644,4 @@ make test
 
 ---
 
-**Zuletzt aktualisiert:** 2024-12-28
+**Zuletzt aktualisiert:** 2024-12-29
