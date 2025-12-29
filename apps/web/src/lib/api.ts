@@ -19,9 +19,9 @@ class ApiClient {
     options: RequestInit = {},
     token?: string | null
   ): Promise<T> {
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      ...options.headers,
+      ...(options.headers as Record<string, string>),
     };
 
     if (token) {
@@ -286,5 +286,6 @@ export const accountsApi = {
 };
 
 export default api;
+
 
 

@@ -1,29 +1,30 @@
-# Projekt-spezifische Cursor Rules
+# accounts.mojo - Cursor Rules
 
-## Projekt-Kontext
-Dieses Projekt läuft auf dem MOJO Dev-Server.
+> **Globale Standards:** `/root/projects/CODING_STANDARDS.md`
 
-## Port-Konfiguration
-- Frontend-Port: Siehe `docs/PORT.md` (OBLIGATORISCH!)
-- Backend-Port: Siehe `docs/PORT.md` (falls vorhanden)
-- **WICHTIG:** Port MUSS in `docs/PORT.md` dokumentiert sein!
+## Projekt-Info
 
-## Code-Standards
-- Verwende TypeScript/JavaScript ES6+
-- Folge den bestehenden Code-Konventionen
-- Dokumentiere wichtige Funktionen
+- **Typ:** Account/User Management (SSOT für Tenants)
+- **Domain:** account.mojo-institut.de
+- **Stack:** Next.js + Fastify + Prisma
 
-## Deployment
-- Projekt wird automatisch über CI/CD deployed
-- Port wird automatisch in nginx registriert
-- **WICHTIG:** Deploy-Server wird über GitHub Secrets konfiguriert (`DEPLOY_SERVER`)
-- **NIEMALS** Server-IPs hardcoden!
-- Siehe `.github/workflows/ci-cd.yml`
+## Architektur
 
-## GitHub Secrets (ERFORDERLICH)
-- `DEPLOY_SERVER` - Server-IP oder Hostname (MUSS gesetzt sein!)
-- `SSH_PRIVATE_KEY` - SSH-Key für Server-Zugriff (MUSS gesetzt sein!)
+```
+apps/
+├── web/        # Frontend (Next.js)
+└── api/        # Backend API (Fastify)
+packages/
+└── shared/     # Shared Types
+```
 
+## Wichtige Patterns
 
+1. **Single Source of Truth:** Tenant-Daten werden hier verwaltet
+2. **Auth:** Clerk JWT + Clerk Webhooks für User/Org Sync
+3. **Multitenancy:** `@mojo/tenant` Middleware
 
+## Service-to-Service
 
+Andere Apps rufen accounts.mojo für Tenant-Daten:
+- Headers: `x-tenant-id`, `x-tenant-slug`, `x-service-name`

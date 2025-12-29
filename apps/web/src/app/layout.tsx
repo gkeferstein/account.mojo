@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { ThemeProvider } from "next-themes";
 import { dark } from "@clerk/themes";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
@@ -46,30 +47,23 @@ export default function RootLayout({
         },
       }}
     >
-      <html lang="de" className="dark">
+      <html lang="de" suppressHydrationWarning>
         <body
-          className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} font-sans min-h-screen bg-noise`}
+          className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} font-sans min-h-screen`}
         >
-          <TenantProvider>
-            {/* Background gradient orbs */}
-            <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-              <div className="gradient-orb gradient-orb-1" />
-              <div className="gradient-orb gradient-orb-2" />
-              <div className="gradient-orb gradient-orb-3" />
-              <div className="gradient-orb gradient-orb-4" />
-            </div>
-
-            {/* Main content */}
-            <div className="relative z-10">
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="dark"
+            enableSystem={false}
+            disableTransitionOnChange
+          >
+            <TenantProvider>
               {children}
-            </div>
-
-            <Toaster />
-          </TenantProvider>
+              <Toaster />
+            </TenantProvider>
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>
   );
 }
-
-

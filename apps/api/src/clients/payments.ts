@@ -1,5 +1,6 @@
 import env from '../lib/env.js';
 import type { Subscription, Invoice, Entitlement } from '@accounts/shared';
+import { TENANT_HEADERS } from '@mojo/tenant';
 
 interface PaymentsClientConfig {
   baseUrl: string;
@@ -92,6 +93,8 @@ export class PaymentsClient {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${this.config.apiKey}`,
+        // Use standardized @mojo/tenant headers
+        [TENANT_HEADERS.SERVICE_NAME]: 'accounts.mojo',
         ...options.headers,
       },
     });
@@ -112,6 +115,7 @@ export class PaymentsClient {
     }
 
     try {
+      // Note: payments.mojo returns the subscription directly, not wrapped in {success, data}
       return await this.fetch<Subscription>(`/me/subscription?userId=${userId}&tenantId=${tenantId}`);
     } catch (error) {
       console.error('Failed to fetch subscription:', error);
@@ -126,6 +130,7 @@ export class PaymentsClient {
     }
 
     try {
+      // Note: payments.mojo returns the array directly, not wrapped in {success, data}
       return await this.fetch<Invoice[]>(`/me/invoices?userId=${userId}&tenantId=${tenantId}`);
     } catch (error) {
       console.error('Failed to fetch invoices:', error);
@@ -140,6 +145,7 @@ export class PaymentsClient {
     }
 
     try {
+      // Note: payments.mojo returns the array directly, not wrapped in {success, data}
       return await this.fetch<Entitlement[]>(`/me/entitlements?userId=${userId}&tenantId=${tenantId}`);
     } catch (error) {
       console.error('Failed to fetch entitlements:', error);
@@ -156,6 +162,7 @@ export class PaymentsClient {
       };
     }
 
+    // Note: payments.mojo returns {url, expiresAt} directly
     return await this.fetch<BillingPortalResponse>('/me/billing-portal-session', {
       method: 'POST',
       body: JSON.stringify({ userId, tenantId, returnUrl }),

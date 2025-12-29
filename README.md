@@ -171,8 +171,7 @@ accounts.mojo/
 │
 ├── infra/
 │   ├── docker-compose.yml        # Base Compose
-│   ├── docker-compose.dev.yml    # Dev Override
-│   └── docker-compose.prod.yml   # Prod Override
+│   │   └── docker-compose.yml   # Prod Override
 │
 ├── docs/
 │   └── PORT.md                   # Port-Dokumentation

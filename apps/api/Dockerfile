@@ -49,7 +49,6 @@ RUN npm run build || [ -d ./dist ]
 # Stage 4: Production
 # ===========================================
 FROM base AS runner
-ENV NODE_ENV=production
 
 WORKDIR /app
 

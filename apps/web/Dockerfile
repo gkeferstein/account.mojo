@@ -3,13 +3,23 @@ WORKDIR /app
 
 # Install dependencies
 FROM base AS deps
-COPY package*.json ./
-RUN npm ci
+
+# Copy package.json
+COPY accounts.mojo/apps/web/package.json ./
+
+# Remove @mojo/design from package.json so npm install doesn't fail
+RUN sed -i '/@mojo\/design/d' package.json
+
+# Install other dependencies
+RUN npm install --legacy-peer-deps
+
+# Copy the @mojo/design package manually
+COPY design.mojo/packages/design ./node_modules/@mojo/design
 
 # Build
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY accounts.mojo/apps/web/ .
 
 # Build-time environment variables
 ARG NEXT_PUBLIC_API_URL
@@ -21,7 +31,6 @@ RUN npm run build
 
 # Production
 FROM base AS runner
-ENV NODE_ENV=production
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
@@ -38,5 +47,3 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "server.js"]
-
-
