@@ -15,7 +15,7 @@ services:
     expose:
       - "3000"
     networks:
-      - mojo-accounts-network
+      - mojo-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
@@ -25,13 +25,25 @@ services:
       start_period: 40s
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=mojo-accounts-network"
-      - "traefik.http.routers.accounts-web.rule=Host(`dev.account.mojo-institut.de`)"
+      - "traefik.docker.network=mojo-network"
+      # DEV Frontend
+      - "traefik.http.routers.accounts-web-dev.rule=Host(`dev.account.mojo-institut.de`)"
+      - "traefik.http.routers.accounts-web-dev.entrypoints=websecure"
+      - "traefik.http.routers.accounts-web-dev.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.accounts-web-dev.service=accounts-web"
+      - "traefik.http.routers.accounts-web-dev.priority=1"
+      - "traefik.http.routers.accounts-web-dev.middlewares=security-headers@file"
+      # PROD Frontend
+      - "traefik.http.routers.accounts-web.rule=Host(`account.mojo-institut.de`)"
       - "traefik.http.routers.accounts-web.entrypoints=websecure"
       - "traefik.http.routers.accounts-web.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.accounts-web.service=accounts-web-service"
-      - "traefik.http.services.accounts-web-service.loadbalancer.server.port=3000"
+      - "traefik.http.routers.accounts-web.service=accounts-web"
+      - "traefik.http.routers.accounts-web.priority=1"
+      - "traefik.http.routers.accounts-web.middlewares=security-headers@file"
+      # Service
+      - "traefik.http.services.accounts-web.loadbalancer.server.port=3000"
 
 networks:
-  mojo-accounts-network:
+  mojo-network:
+    name: mojo-network
     external: true

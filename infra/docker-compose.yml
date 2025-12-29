@@ -10,7 +10,7 @@ services:
     volumes:
       - accounts-db-data:/var/lib/postgresql/data
     networks:
-      - mojo-accounts-network
+      - mojo-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-accounts}"]
       interval: 10s
@@ -32,9 +32,9 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-accounts}:${POSTGRES_PASSWORD:-accounts_secret}@db:5432/${POSTGRES_DB:-accounts_db}
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
       CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
-      PAYMENTS_API_URL: ${PAYMENTS_API_URL:-https://payments.mojo-institut.de/api/v1}
+      PAYMENTS_API_URL: ${PAYMENTS_API_URL:-https://payments.mojo-institut.de/api}
       PAYMENTS_API_KEY: ${PAYMENTS_API_KEY}
-      CRM_API_URL: ${CRM_API_URL:-https://kontakte.mojo-institut.de/api/v1}
+      CRM_API_URL: ${CRM_API_URL:-https://kontakte.mojo-institut.de/api}
       CRM_API_KEY: ${CRM_API_KEY}
       CRM_TENANT_SLUG: ${CRM_TENANT_SLUG:-mojo}
       MOCK_EXTERNAL_SERVICES: ${MOCK_EXTERNAL_SERVICES:-false}
@@ -42,61 +42,38 @@ services:
       WEBHOOK_SECRET_CRM: ${WEBHOOK_SECRET_CRM}
       FRONTEND_URL: ${FRONTEND_URL:-https://dev.account.mojo-institut.de}
     networks:
-      - mojo-accounts-network
+      - mojo-network
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=mojo-accounts-network"
-      - "traefik.http.routers.accounts-api.rule=Host(`dev.account.mojo-institut.de`) && PathPrefix(`/api`)"
+      - "traefik.docker.network=mojo-network"
+      # DEV API
+      - "traefik.http.routers.accounts-api-dev.rule=Host(`dev.account.mojo-institut.de`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.accounts-api-dev.entrypoints=websecure"
+      - "traefik.http.routers.accounts-api-dev.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.accounts-api-dev.service=accounts-api"
+      - "traefik.http.routers.accounts-api-dev.priority=10"
+      - "traefik.http.routers.accounts-api-dev.middlewares=security-headers@file,cors@file"
+      # PROD API
+      - "traefik.http.routers.accounts-api.rule=Host(`account.mojo-institut.de`) && PathPrefix(`/api`)"
       - "traefik.http.routers.accounts-api.entrypoints=websecure"
       - "traefik.http.routers.accounts-api.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.accounts-api.service=accounts-api-service"
-      - "traefik.http.services.accounts-api-service.loadbalancer.server.port=3001"
+      - "traefik.http.routers.accounts-api.service=accounts-api"
+      - "traefik.http.routers.accounts-api.priority=10"
+      - "traefik.http.routers.accounts-api.middlewares=security-headers@file,cors@file"
+      # Service
+      - "traefik.http.services.accounts-api.loadbalancer.server.port=3001"
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3001/api/v1/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
     restart: unless-stopped
 
-  # Next.js Frontend
-  web:
-    container_name: accounts-web
-    build:
-      context: ../apps/web
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://dev.account.mojo-institut.de}
-        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
-    depends_on:
-      - api
-    environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://dev.account.mojo-institut.de}
-      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
-      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
-    networks:
-      - mojo-accounts-network
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=mojo-accounts-network"
-      - "traefik.http.routers.accounts-web.rule=Host(`dev.account.mojo-institut.de`)"
-      - "traefik.http.routers.accounts-web.entrypoints=websecure"
-      - "traefik.http.routers.accounts-web.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.accounts-web.service=accounts-web-service"
-      - "traefik.http.routers.accounts-web.priority=1"
-      - "traefik.http.services.accounts-web-service.loadbalancer.server.port=3000"
-    healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    restart: unless-stopped
-
 networks:
-  mojo-accounts-network:
+  mojo-network:
+    name: mojo-network
     external: true
 
 volumes:
   accounts-db-data:
-
