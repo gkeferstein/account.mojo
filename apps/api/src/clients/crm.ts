@@ -1,6 +1,12 @@
 import env from '../lib/env.js';
 import type { Profile, Consent } from '@accounts/shared';
-import { TENANT_HEADERS } from '@mojo/tenant';
+
+// Tenant headers (local definition to avoid @mojo/tenant dependency)
+const TENANT_HEADERS = {
+  TENANT_ID: 'x-tenant-id',
+  TENANT_SLUG: 'x-tenant-slug',
+  SERVICE_NAME: 'x-service-name',
+} as const;
 
 interface CrmClientConfig {
   baseUrl: string;

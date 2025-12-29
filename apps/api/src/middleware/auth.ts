@@ -3,8 +3,6 @@
  * 
  * Validates Clerk JWT tokens and resolves tenant context.
  * accounts.mojo is the SSOT for tenant data - other services sync from here.
- * 
- * Uses @mojo/tenant for consistent tenant types across services.
  */
 
 import { FastifyRequest, FastifyReply, FastifyInstance } from 'fastify';
@@ -12,7 +10,38 @@ import { createClerkClient, verifyToken } from '@clerk/backend';
 import prisma from '../lib/prisma.js';
 import env from '../lib/env.js';
 import type { User, Tenant, TenantMembership, TenantRole } from '@prisma/client';
-import { Tenant as MojoTenant, TenantContext, TENANT_HEADERS, createTenantHeaders } from '@mojo/tenant';
+
+// Local tenant types (accounts.mojo is the SSOT, so we define them here)
+interface MojoTenant {
+  id: string;
+  slug: string;
+  name: string;
+  clerkOrgId?: string;
+  isPersonal: boolean;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface TenantContext {
+  tenant: MojoTenant;
+  source: 'header' | 'jwt_org_id' | 'default';
+  rawIdentifier?: string;
+}
+
+const TENANT_HEADERS = {
+  TENANT_ID: 'x-tenant-id',
+  TENANT_SLUG: 'x-tenant-slug',
+  SERVICE_NAME: 'x-service-name',
+} as const;
+
+function createTenantHeaders(tenant: MojoTenant, serviceName: string): Record<string, string> {
+  return {
+    [TENANT_HEADERS.TENANT_ID]: tenant.id,
+    [TENANT_HEADERS.TENANT_SLUG]: tenant.slug,
+    [TENANT_HEADERS.SERVICE_NAME]: serviceName,
+  };
+}
 
 // Extend Fastify request with auth context
 declare module 'fastify' {
@@ -55,15 +84,14 @@ function toMojoTenant(tenant: Tenant): MojoTenant {
 }
 
 // Get or create user from Clerk JWT
-// NOTE: Personal tenant provisioning is now handled via Clerk webhooks (clerk-webhooks.ts)
-// This function only creates/updates the user record for JWT-based auth
+// Also ensures a personal tenant exists (fallback if webhook failed)
 async function getOrCreateUser(clerkUserId: string, email: string, firstName?: string | null, lastName?: string | null, avatarUrl?: string | null): Promise<User> {
   let user = await prisma.user.findUnique({
     where: { clerkUserId },
   });
 
   if (!user) {
-    // Create new user (personal tenant will be created via webhook)
+    // Create new user
     user = await prisma.user.create({
       data: {
         clerkUserId,
@@ -73,7 +101,7 @@ async function getOrCreateUser(clerkUserId: string, email: string, firstName?: s
         avatarUrl,
       },
     });
-    console.log(`📝 User created via JWT auth: ${clerkUserId} (webhook will provision personal org)`);
+    console.log(`📝 User created via JWT auth: ${clerkUserId}`);
   } else {
     // Update user info if changed
     if (user.email !== email || user.firstName !== firstName || user.lastName !== lastName || user.avatarUrl !== avatarUrl) {
@@ -84,7 +112,54 @@ async function getOrCreateUser(clerkUserId: string, email: string, firstName?: s
     }
   }
 
+  // Ensure personal tenant exists (fallback if webhook didn't create it)
+  await ensurePersonalTenant(user);
+
   return user;
+}
+
+// Ensure user has a personal tenant (fallback for webhook failures)
+async function ensurePersonalTenant(user: User): Promise<void> {
+  // Check if user already has a personal tenant
+  const existingMembership = await prisma.tenantMembership.findFirst({
+    where: {
+      userId: user.id,
+      tenant: {
+        isPersonal: true,
+      },
+    },
+    include: {
+      tenant: true,
+    },
+  });
+
+  if (existingMembership) {
+    return; // Personal tenant already exists
+  }
+
+  // Create personal tenant
+  const displayName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || 'Persönliches Konto';
+  const slug = `personal-${user.id.slice(0, 8)}`;
+
+  const tenant = await prisma.tenant.create({
+    data: {
+      name: displayName,
+      slug,
+      isPersonal: true,
+    },
+  });
+
+  // Create membership with owner role
+  await prisma.tenantMembership.create({
+    data: {
+      tenantId: tenant.id,
+      userId: user.id,
+      role: 'owner',
+      status: 'active',
+    },
+  });
+
+  console.log(`📝 Personal tenant created as fallback for user ${user.id}: ${tenant.slug}`);
 }
 
 // Get user's tenants with memberships

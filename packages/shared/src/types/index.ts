@@ -86,13 +86,38 @@ export interface Invoice {
 }
 
 // Entitlement Types
+// Must match payments.mojo resource_type enum
+export type EntitlementResourceType = 
+  | 'course' 
+  | 'membership' 
+  | 'bundle' 
+  | 'service' 
+  | 'feature' 
+  | 'app_access';
+
 export interface Entitlement {
   id: string;
-  type: 'course_access' | 'feature_flag' | 'resource_limit';
-  resourceId: string | null;
+  type: EntitlementResourceType;
+  resourceId: string;
   resourceName: string | null;
   expiresAt: Date | null;
   metadata: Record<string, unknown>;
+}
+
+// App entitlements for navigation
+// These are the strings used by design.mojo MojoGlobalHeader
+export type AppEntitlement = 
+  | 'pos:access'
+  | 'checkin:access'
+  | 'payments:admin'
+  | 'kontakte:admin'
+  | 'connect:admin'
+  | 'mailer:admin'
+  | 'platform:developer';
+
+export interface AppEntitlementsResponse {
+  entitlements: AppEntitlement[];
+  isPlatformAdmin: boolean;
 }
 
 // Preferences Types

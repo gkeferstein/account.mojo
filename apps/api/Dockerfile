@@ -1,8 +1,8 @@
 # Multi-stage build für Monorepo mit @accounts/shared
 FROM node:22-slim AS base
 
-# Install OpenSSL for Prisma
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+# Install OpenSSL for Prisma and wget for healthcheck
+RUN apt-get update && apt-get install -y openssl wget && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -11,21 +11,22 @@ WORKDIR /app
 # ===========================================
 FROM base AS shared-builder
 WORKDIR /app/packages/shared
-COPY packages/shared/ ./
+COPY accounts.mojo/packages/shared/ ./
 RUN npm install && npm run build
 
 # ===========================================
-# Stage 2: Install API dependencies (ohne @accounts/shared)
+# Stage 2: Install API dependencies
 # ===========================================
 FROM base AS api-deps
 WORKDIR /app/apps/api
 
-# Copy package.json und modifiziere es (entferne @accounts/shared dependency)
-COPY apps/api/package*.json ./
-COPY apps/api/prisma ./prisma/
+# Copy package.json und modifiziere es (entferne lokale dependencies)
+COPY accounts.mojo/apps/api/package*.json ./
+COPY accounts.mojo/apps/api/prisma ./prisma/
 
-# Entferne @accounts/shared aus dependencies und installiere den Rest
+# Entferne lokale dependencies und installiere den Rest
 RUN sed -i '/"@accounts\/shared"/d' package.json && \
+    sed -i '/"@mojo\/tenant"/d' package.json && \
     npm install --legacy-peer-deps
 
 # Generate Prisma Client
@@ -42,13 +43,16 @@ RUN mkdir -p /app/apps/api/node_modules/@accounts && \
     ln -s /app/packages/shared /app/apps/api/node_modules/@accounts/shared
 
 # Copy API source und build (ignore type errors, emit anyway)
-COPY apps/api/ ./
+COPY accounts.mojo/apps/api/ ./
 RUN npm run build || [ -d ./dist ]
 
 # ===========================================
 # Stage 4: Production
 # ===========================================
 FROM base AS runner
+
+# Install wget for healthcheck (not in base slim image)
+RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -64,7 +68,7 @@ WORKDIR /app/apps/api
 COPY --from=api-deps /app/apps/api/node_modules ./node_modules
 COPY --from=api-builder /app/apps/api/dist ./dist
 COPY --from=api-builder /app/apps/api/prisma ./prisma
-COPY apps/api/package*.json ./
+COPY accounts.mojo/apps/api/package*.json ./
 
 # Link shared package
 RUN mkdir -p ./node_modules/@accounts && \

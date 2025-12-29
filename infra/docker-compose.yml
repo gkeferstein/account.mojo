@@ -22,8 +22,8 @@ services:
   api:
     container_name: accounts-api
     build:
-      context: ..
-      dockerfile: apps/api/Dockerfile
+      context: /root/projects
+      dockerfile: accounts.mojo/apps/api/Dockerfile
     depends_on:
       db:
         condition: service_healthy
@@ -50,24 +50,67 @@ services:
       - "traefik.http.routers.accounts-api-dev.rule=Host(`dev.account.mojo-institut.de`) && PathPrefix(`/api`)"
       - "traefik.http.routers.accounts-api-dev.entrypoints=websecure"
       - "traefik.http.routers.accounts-api-dev.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.accounts-api-dev.service=accounts-api"
+      - "traefik.http.routers.accounts-api-dev.service=accounts-api-service"
       - "traefik.http.routers.accounts-api-dev.priority=10"
-      - "traefik.http.routers.accounts-api-dev.middlewares=security-headers@file,cors@file"
       # PROD API
       - "traefik.http.routers.accounts-api.rule=Host(`account.mojo-institut.de`) && PathPrefix(`/api`)"
       - "traefik.http.routers.accounts-api.entrypoints=websecure"
       - "traefik.http.routers.accounts-api.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.accounts-api.service=accounts-api"
+      - "traefik.http.routers.accounts-api.service=accounts-api-service"
       - "traefik.http.routers.accounts-api.priority=10"
-      - "traefik.http.routers.accounts-api.middlewares=security-headers@file,cors@file"
       # Service
-      - "traefik.http.services.accounts-api.loadbalancer.server.port=3001"
+      - "traefik.http.services.accounts-api-service.loadbalancer.server.port=3001"
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    restart: unless-stopped
+
+  # Next.js Web Frontend
+  web:
+    container_name: accounts-web
+    build:
+      context: /root/projects
+      dockerfile: accounts.mojo/Dockerfile
+      args:
+        # Note: API_URL without /api suffix because api.ts endpoints include /api/v1/
+        - NEXT_PUBLIC_API_URL=https://dev.account.mojo-institut.de
+        - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_bWVhc3VyZWQtYmVkYnVnLTE5LmNsZXJrLmFjY291bnRzLmRldiQ
+        - NEXT_PUBLIC_PAYMENTS_API_URL=https://payments.mojo-institut.de/api
+    environment:
+      PORT: 3020
+      NODE_ENV: production
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_bWVhc3VyZWQtYmVkYnVnLTE5LmNsZXJrLmFjY291bnRzLmRldiQ
+    expose:
+      - "3020"
+    networks:
+      - mojo-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mojo-network"
+      # DEV Web (lower priority than API)
+      - "traefik.http.routers.accounts-web-dev.rule=Host(`dev.account.mojo-institut.de`)"
+      - "traefik.http.routers.accounts-web-dev.entrypoints=websecure"
+      - "traefik.http.routers.accounts-web-dev.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.accounts-web-dev.service=accounts-web-service"
+      - "traefik.http.routers.accounts-web-dev.priority=1"
+      # PROD Web
+      - "traefik.http.routers.accounts-web.rule=Host(`account.mojo-institut.de`)"
+      - "traefik.http.routers.accounts-web.entrypoints=websecure"
+      - "traefik.http.routers.accounts-web.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.accounts-web.service=accounts-web-service"
+      - "traefik.http.routers.accounts-web.priority=1"
+      # Service
+      - "traefik.http.services.accounts-web-service.loadbalancer.server.port=3020"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "-O", "/dev/null", "http://localhost:3020/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
 
 networks:

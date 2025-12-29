@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma.js';
 import paymentsClient from '../clients/payments.js';
-import type { Entitlement } from '@accounts/shared';
+import type { Entitlement, AppEntitlementsResponse } from '@accounts/shared';
 
 export async function entitlementsRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /entitlements - Get user entitlements
@@ -52,11 +52,14 @@ export async function entitlementsRoutes(fastify: FastifyInstance): Promise<void
 
     const entitlements = (entitlementCache.entitlements as Entitlement[]) || [];
 
-    // Group by type
+    // Group by type (matching new payments.mojo resource_types)
     const grouped = {
-      courseAccess: entitlements.filter((e) => e.type === 'course_access'),
-      featureFlags: entitlements.filter((e) => e.type === 'feature_flag'),
-      resourceLimits: entitlements.filter((e) => e.type === 'resource_limit'),
+      courses: entitlements.filter((e) => e.type === 'course'),
+      memberships: entitlements.filter((e) => e.type === 'membership'),
+      features: entitlements.filter((e) => e.type === 'feature'),
+      appAccess: entitlements.filter((e) => e.type === 'app_access'),
+      bundles: entitlements.filter((e) => e.type === 'bundle'),
+      services: entitlements.filter((e) => e.type === 'service'),
     };
 
     return reply.send({
@@ -64,6 +67,27 @@ export async function entitlementsRoutes(fastify: FastifyInstance): Promise<void
       grouped,
       total: entitlements.length,
     });
+  });
+
+  // GET /entitlements/apps - Get app access entitlements for navigation
+  // Returns the entitlement strings needed by MojoGlobalHeader
+  fastify.get('/entitlements/apps', async (request, reply) => {
+    const { auth } = request;
+
+    if (!auth.activeTenant) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'No active tenant',
+      });
+    }
+
+    // Fetch app entitlements from payments.mojo
+    const appEntitlements = await paymentsClient.getAppEntitlements(
+      auth.userId,
+      auth.activeTenant.id
+    );
+
+    return reply.send(appEntitlements);
   });
 
   // GET /entitlements/:resourceId - Check specific entitlement
