@@ -1,32 +1,50 @@
 services:
   app:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: /root/projects
+      dockerfile: accounts.mojo/Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=https://dev.account.mojo-institut.de/api
+        - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_bWVhc3VyZWQtYmVkYnVnLTE5LmNsZXJrLmFjY291bnRzLmRldiQ
+        - NEXT_PUBLIC_PAYMENTS_API_URL=https://payments.mojo-institut.de/api
     container_name: accounts.mojo
     environment:
       PORT: 3020
+      NODE_ENV: production
+      CLERK_SECRET_KEY: sk_test_yvQzIvRm8z9VMJvubKLWt5QjLbdaXmwKNJ8AoS4toa
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_bWVhc3VyZWQtYmVkYnVnLTE5LmNsZXJrLmFjY291bnRzLmRldiQ
     expose:
       - "3020"
     networks:
       - mojo-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3020/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3020/"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=mojo-network"
-      - "traefik.http.routers.accounts.mojo.rule=Host(`dev.accounts.mojo.mojo-institut.de`)"
-      - "traefik.http.routers.accounts.mojo.entrypoints=websecure"
-      - "traefik.http.routers.accounts.mojo.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.accounts.mojo.service=accounts.mojo-service"
-      - "traefik.http.routers.accounts.mojo.priority=1"
-      - "traefik.http.services.accounts.mojo-service.loadbalancer.server.port=3020"
-      - "traefik.http.services.accounts.mojo-service.loadbalancer.passhostheader=true"
+      
+      # ========================================
+      # PRODUCTION Route: account.mojo-institut.de
+      # ========================================
+      - "traefik.http.routers.accounts.rule=Host(`account.mojo-institut.de`)"
+      - "traefik.http.routers.accounts.entrypoints=websecure"
+      - "traefik.http.routers.accounts.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.accounts.service=accounts-service"
+      - "traefik.http.services.accounts-service.loadbalancer.server.port=3020"
+      - "traefik.http.services.accounts-service.loadbalancer.passhostheader=true"
+      
+      # ========================================
+      # DEVELOPMENT Route: dev.account.mojo-institut.de
+      # ========================================
+      - "traefik.http.routers.accounts-dev.rule=Host(`dev.account.mojo-institut.de`)"
+      - "traefik.http.routers.accounts-dev.entrypoints=websecure"
+      - "traefik.http.routers.accounts-dev.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.accounts-dev.service=accounts-service"
 
 networks:
   mojo-network:

@@ -1,6 +1,12 @@
 import env from '../lib/env.js';
-import type { Subscription, Invoice, Entitlement } from '@accounts/shared';
-import { TENANT_HEADERS } from '@mojo/tenant';
+import type { Subscription, Invoice, Entitlement, AppEntitlementsResponse } from '@accounts/shared';
+
+// Tenant headers (local definition to avoid @mojo/tenant dependency)
+const TENANT_HEADERS = {
+  TENANT_ID: 'x-tenant-id',
+  TENANT_SLUG: 'x-tenant-slug',
+  SERVICE_NAME: 'x-service-name',
+} as const;
 
 interface PaymentsClientConfig {
   baseUrl: string;
@@ -47,7 +53,7 @@ const mockInvoices: Invoice[] = [
 const mockEntitlements: Entitlement[] = [
   {
     id: 'ent_mock_001',
-    type: 'course_access',
+    type: 'course',
     resourceId: 'course_101',
     resourceName: 'MOJO Grundlagen',
     expiresAt: null,
@@ -55,7 +61,7 @@ const mockEntitlements: Entitlement[] = [
   },
   {
     id: 'ent_mock_002',
-    type: 'course_access',
+    type: 'course',
     resourceId: 'course_102',
     resourceName: 'Fortgeschrittene Techniken',
     expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
@@ -63,13 +69,18 @@ const mockEntitlements: Entitlement[] = [
   },
   {
     id: 'ent_mock_003',
-    type: 'feature_flag',
+    type: 'feature',
     resourceId: 'premium_support',
     resourceName: 'Premium Support',
     expiresAt: null,
     metadata: { enabled: true },
   },
 ];
+
+const mockAppEntitlements: AppEntitlementsResponse = {
+  entitlements: ['pos:access', 'payments:admin'],
+  isPlatformAdmin: false,
+};
 
 export class PaymentsClient {
   private config: PaymentsClientConfig;
@@ -150,6 +161,24 @@ export class PaymentsClient {
     } catch (error) {
       console.error('Failed to fetch entitlements:', error);
       return [];
+    }
+  }
+
+  /**
+   * Get app access entitlements for navigation
+   * Returns which MOJO platform apps the user has access to
+   */
+  async getAppEntitlements(userId: string, tenantId: string): Promise<AppEntitlementsResponse> {
+    if (this.mockMode) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return mockAppEntitlements;
+    }
+
+    try {
+      return await this.fetch<AppEntitlementsResponse>(`/me/app-entitlements?userId=${userId}&tenantId=${tenantId}`);
+    } catch (error) {
+      console.error('Failed to fetch app entitlements:', error);
+      return { entitlements: [], isPlatformAdmin: false };
     }
   }
 

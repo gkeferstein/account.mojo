@@ -5,7 +5,7 @@
  * Uses MOJO Design System navigation components for the topbar
  * Modeled after payments.mojo implementation
  * 
- * App entitlements are loaded dynamically from the payments.mojo API
+ * Uses Clerk Organizations for tenant management
  */
 
 import {
@@ -14,147 +14,144 @@ import {
   TenantSwitcher,
   MojoLogo,
   MOJO_APPS,
-  filterAppsByEntitlements,
 } from '@mojo/design';
-import { useClerk } from '@clerk/nextjs';
-import { useTenant } from '@/providers/TenantProvider';
+import { useClerk, useOrganizationList, useOrganization, useUser } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
 import type { Tenant, MojoUser } from '@mojo/design';
-import { useMemo, useEffect, useState } from 'react';
-
-// Payments.mojo API URL for fetching app entitlements
-const PAYMENTS_API_URL = process.env.NEXT_PUBLIC_PAYMENTS_API_URL || 'https://payments.mojo-institut.de/api/v1';
-
-interface AppEntitlementsResponse {
-  entitlements: string[];
-  isPlatformAdmin: boolean;
-}
-
-async function fetchAppEntitlements(userId: string, tenantId: string): Promise<string[]> {
-  try {
-    const response = await fetch(
-      `${PAYMENTS_API_URL}/me/app-entitlements?userId=${encodeURIComponent(userId)}&tenantId=${encodeURIComponent(tenantId)}`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    const data: AppEntitlementsResponse = await response.json();
-    return data.entitlements || [];
-  } catch (error) {
-    console.error('Failed to fetch app entitlements from payments.mojo:', error);
-    return [];
-  }
-}
+import { useMemo, useCallback } from 'react';
 
 export function Header() {
-  const { user, tenants, activeTenant, switchTenant, isLoading, error } = useTenant();
+  const { user: clerkUser, isLoaded: userLoaded } = useUser();
   const { signOut } = useClerk();
-  const [appEntitlements, setAppEntitlements] = useState<string[]>([]);
-  const [isLoadingEntitlements, setIsLoadingEntitlements] = useState(true);
+  const { organization: activeOrg } = useOrganization();
+  const { userMemberships, isLoaded: membershipsLoaded, setActive } = useOrganizationList({
+    userMemberships: {
+      infinite: true,
+    },
+  });
+  const router = useRouter();
 
-  // Fetch app entitlements from payments.mojo API
-  useEffect(() => {
-    async function loadAppEntitlements() {
-      if (!user?.id || !activeTenant?.id) {
-        setIsLoadingEntitlements(false);
-        return;
-      }
+  const handleLogout = useCallback(async () => {
+    await signOut();
+    router.push('/');
+  }, [signOut, router]);
 
-      try {
-        const entitlements = await fetchAppEntitlements(user.id, activeTenant.id);
-        setAppEntitlements(entitlements);
-      } catch (error) {
-        console.error('Failed to load app entitlements:', error);
-        // Fallback: account.mojo shows only user-accessible apps (no entitlements needed)
-        setAppEntitlements([]);
-      } finally {
-        setIsLoadingEntitlements(false);
+  // Build current tenant from active Clerk organization
+  const currentTenant: Tenant | null = useMemo(() => {
+    if (!clerkUser) return null;
+    
+    // If user has an active Clerk organization, use that
+    if (activeOrg) {
+      // Check user's role in the organization
+      const membership = userMemberships?.data?.find(
+        m => m.organization.id === activeOrg.id
+      );
+      const role = membership?.role === 'org:admin' ? 'Admin' : 'Mitglied';
+      
+      return {
+        id: activeOrg.id,
+        name: activeOrg.name,
+        slug: activeOrg.slug || activeOrg.id,
+        type: 'organization',
+        role,
+        imageUrl: activeOrg.imageUrl,
+      };
+    }
+    
+    // No active org - show personal account
+    return {
+      id: clerkUser.id,
+      name: 'Persönlicher Bereich',
+      slug: 'personal',
+      type: 'personal',
+      role: 'Besitzer',
+    };
+  }, [clerkUser, activeOrg, userMemberships?.data]);
+
+  // Build tenant list from Clerk organizations
+  const tenants: Tenant[] = useMemo(() => {
+    const tenantList: Tenant[] = [];
+    
+    // Always add personal space option
+    if (clerkUser) {
+      tenantList.push({
+        id: clerkUser.id,
+        name: 'Persönlicher Bereich',
+        slug: 'personal',
+        type: 'personal',
+        role: 'Besitzer',
+      });
+    }
+    
+    // Add Clerk organizations the user is a member of
+    if (membershipsLoaded && userMemberships?.data) {
+      for (const membership of userMemberships.data) {
+        const org = membership.organization;
+        if (org) {
+          tenantList.push({
+            id: org.id,
+            name: org.name,
+            slug: org.slug || org.id,
+            type: 'organization',
+            role: membership.role === 'org:admin' ? 'Admin' : 'Mitglied',
+            imageUrl: org.imageUrl,
+          });
+        }
       }
     }
+    
+    return tenantList;
+  }, [clerkUser, membershipsLoaded, userMemberships?.data]);
 
-    loadAppEntitlements();
-  }, [user?.id, activeTenant?.id]);
+  // Handle tenant switching
+  const handleTenantChange = useCallback(async (tenant: Tenant) => {
+    console.log('Switching to tenant:', tenant.id, tenant.name);
+    
+    // If switching to personal space
+    if (tenant.type === 'personal') {
+      if (setActive) {
+        await setActive({ organization: null });
+      }
+      return;
+    }
+    
+    // If switching to a Clerk organization
+    if (setActive && tenant.type === 'organization') {
+      await setActive({ organization: tenant.id });
+    }
+  }, [setActive]);
 
-  const handleLogout = () => {
-    signOut({ redirectUrl: '/' });
-  };
+  // Map Clerk user to MojoUser format
+  const mojoUser: MojoUser | null = useMemo(() => {
+    if (!clerkUser) return null;
+    return {
+      id: clerkUser.id,
+      name: clerkUser.fullName || clerkUser.firstName || 'User',
+      email: clerkUser.primaryEmailAddress?.emailAddress || '',
+      imageUrl: clerkUser.imageUrl,
+    };
+  }, [clerkUser]);
 
   // Show loading state
-  if (isLoading || isLoadingEntitlements) {
+  if (!userLoaded || !membershipsLoaded) {
     return (
       <div className="flex w-full items-center justify-center px-4">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
-  }
-
-  // Show error if any
-  if (error) {
-    return (
-      <div className="flex w-full items-center justify-center px-4">
-        <MojoLogo size="sm" mode="dark" />
-        <span className="ml-2 text-xs text-red-500">Fehler: {error}</span>
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );
   }
 
   // If no user, show minimal header with just the logo
-  if (!user || !activeTenant) {
+  if (!clerkUser || !mojoUser || !currentTenant) {
     return (
       <div className="flex w-full items-center justify-center px-4">
         <MojoLogo size="sm" mode="dark" />
-        <span className="ml-2 text-xs text-muted-foreground">
-          User: {user ? 'OK' : 'fehlt'} | Tenant: {activeTenant ? 'OK' : 'fehlt'}
-        </span>
       </div>
     );
   }
 
-  // Map TenantProvider user to MojoUser format
-  const mojoUser: MojoUser = {
-    id: user.id,
-    name: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email,
-    email: user.email,
-    imageUrl: user.avatarUrl || undefined,
-  };
-
-  // Map current tenant to Mojo Tenant format
-  const currentTenant: Tenant = {
-    id: activeTenant.id,
-    name: activeTenant.name,
-    slug: activeTenant.slug,
-    type: activeTenant.isPersonal ? 'personal' : 'organization',
-    role: activeTenant.role,
-  };
-
-  // Map all tenants
-  const mojoTenants: Tenant[] = tenants.map((t) => ({
-    id: t.id,
-    name: t.name,
-    slug: t.slug,
-    type: t.isPersonal ? 'personal' : 'organization',
-    role: t.role,
-  }));
-
-  // Filter apps based on dynamically loaded entitlements
-  const visibleApps = useMemo(
-    () => filterAppsByEntitlements(MOJO_APPS, appEntitlements),
-    [appEntitlements]
-  );
-
-  const handleTenantChange = async (tenant: Tenant) => {
-    try {
-      await switchTenant(tenant.id);
-    } catch (error) {
-      console.error('Failed to switch tenant:', error);
-    }
-  };
+  // accounts.mojo shows all available apps
+  const visibleApps = MOJO_APPS;
 
   return (
     <div className="flex w-full items-center gap-2 px-4">
@@ -171,7 +168,7 @@ export function Header() {
       <div className="flex items-center gap-1">
         <TenantSwitcher
           currentTenant={currentTenant}
-          tenants={mojoTenants}
+          tenants={tenants}
           onTenantChange={handleTenantChange}
           variant="compact"
         />

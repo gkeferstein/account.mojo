@@ -3,41 +3,51 @@
 /**
  * Dashboard Layout Component
  * Uses MOJO Design System MojoShell for consistent layout across all pages
+ * Modeled after payments.mojo implementation
+ * 
+ * Manages the sidebar collapsed state centrally to keep
+ * MojoShell and MojoSidebar in sync.
  */
 
+import { ReactNode, useState, useCallback } from 'react';
 import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
 import { MojoShell, MojoBackground } from '@mojo/design';
 import { Header } from './Header';
-import { Sidebar } from '../Sidebar';
+import { Sidebar } from './Sidebar';
 import { useTenant } from '@/providers/TenantProvider';
 import { Button } from '@/components/ui/button';
 import { Sparkles, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface DashboardLayoutProps {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
-// Wrapper to handle React 18/19 type mismatch with @mojo/design
-function ShellWrapper({ children }: { children: React.ReactNode }) {
-  // Cast children to any to avoid React 18/19 ReactNode type mismatch
-  const content = children as any;
-  return (
-    <MojoShell
-      sidebar={<Sidebar />}
-      topbar={<Header />}
-      showBackground
-      noise
-      orbs
-      className="p-6"
-    >
-      {content}
-    </MojoShell>
-  );
-}
+// LocalStorage key for sidebar state persistence
+const SIDEBAR_COLLAPSED_KEY = 'mojo-sidebar-collapsed';
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { isLoading } = useTenant();
+  
+  // Initialize from localStorage if available
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+      return saved === 'true';
+    }
+    return false;
+  });
+
+  // Toggle sidebar and persist to localStorage
+  const handleToggleSidebar = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const newValue = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(newValue));
+      }
+      return newValue;
+    });
+  }, []);
 
   return (
     <>
@@ -82,7 +92,22 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
           </MojoBackground>
         ) : (
-          <ShellWrapper>{children}</ShellWrapper>
+          <MojoShell
+            sidebar={
+              <Sidebar
+                collapsed={sidebarCollapsed}
+                onToggleCollapse={handleToggleSidebar}
+              />
+            }
+            topbar={<Header />}
+            showBackground
+            noise
+            orbs
+            sidebarCollapsed={sidebarCollapsed}
+            className="p-6"
+          >
+            {children}
+          </MojoShell>
         )}
       </SignedIn>
     </>
