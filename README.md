@@ -147,14 +147,19 @@ accounts.mojo/
 │       │   │   ├── page.tsx      # Dashboard
 │       │   │   ├── profile/      # Profil bearbeiten
 │       │   │   ├── membership/   # Abo-Verwaltung
+│       │   │   ├── journey/      # MOJO Journey Graduierung
 │       │   │   ├── team/         # Team-Management
 │       │   │   ├── security/     # Sicherheit (Clerk)
+│       │   │   ├── notifications/# Benachrichtigungen
 │       │   │   ├── preferences/  # Einstellungen
 │       │   │   ├── data/         # DSGVO Export/Löschung
 │       │   │   ├── support/      # Hilfe & Support
 │       │   │   └── invite/       # Einladung annehmen
 │       │   ├── components/
-│       │   │   ├── Sidebar.tsx   # Navigation
+│       │   │   ├── layout/       # Layout-Komponenten
+│       │   │   │   ├── DashboardLayout.tsx  # Haupt-Layout
+│       │   │   │   ├── Header.tsx           # Topbar mit Clerk Orgs
+│       │   │   │   └── Sidebar.tsx          # MojoSidebar
 │       │   │   └── ui/           # shadcn/ui Components
 │       │   ├── lib/
 │       │   │   ├── api.ts        # API Client
@@ -171,7 +176,8 @@ accounts.mojo/
 │
 ├── infra/
 │   ├── docker-compose.yml        # Base Compose
-│   │   └── docker-compose.yml   # Prod Override
+│   ├── docker-compose.dev.yml    # Dev Override
+│   └── docker-compose.prod.yml   # Prod Override
 │
 ├── docs/
 │   └── PORT.md                   # Port-Dokumentation
@@ -190,12 +196,29 @@ accounts.mojo/
 | `/` | Dashboard | Übersicht: Status, Berechtigungen, Team, Schnellzugriff |
 | `/profile` | Profil | Name, E-Mail, Telefon, Adresse, Firma, USt-ID |
 | `/membership` | Mitgliedschaft | Abo-Status, Plan, Rechnungen, Billing Portal |
+| `/journey` | **MOJO Journey** | Graduierungssystem mit 6 Stufen und je 6 Milestones |
 | `/team` | Team | Mitglieder verwalten, Einladungen, Rollen |
 | `/security` | Sicherheit | Passwort, 2FA, Sessions (via Clerk) |
-| `/preferences` | Einstellungen | Newsletter, Benachrichtigungen, Sprache, Zeitzone |
+| `/notifications` | **Benachrichtigungen** | E-Mail, Journey & Team Notification Settings |
+| `/preferences` | Einstellungen | Sprache, Zeitzone, Präferenzen |
 | `/data` | Daten & Privatsphäre | DSGVO Export, Account-Löschung |
 | `/support` | Hilfe | FAQ, Support-Kontakt |
 | `/invite` | Einladung | Team-Einladung annehmen |
+
+### MOJO Journey Graduierungssystem
+
+Die Journey-Seite visualisiert den Fortschritt durch das MOJO System - wie Gürtel im Kampfsport:
+
+| Stufe | Farbe | Name | Beschreibung |
+|-------|-------|------|--------------|
+| 1 | `#66dd99` | **LEBENSENERGIE** | Finde dein MOJO (wieder) |
+| 2 | `#ffffff` | **CAMPUS** | Vernetze dich und optimiere deine Regeneration |
+| 3 | `#0d63bf` | **BUSINESS BOOTCAMP** | Starte dein eigenes Gesundheitsbusiness |
+| 4 | `#873acf` | **RegenerationsmedizinOS** | Das Betriebssystem für chronische Gesundheit |
+| 5 | `#f5bb00` | **Praxiszirkel** | Behandle Menschen unter Fachleuten |
+| 6 | `#000000` | **MOJO Inkubator** | Eröffne dein eigenes MOJO Institut |
+
+Jede Stufe hat **6 Milestones**, die als Tags für den User-Fortschritt dienen.
 
 ---
 
@@ -493,6 +516,76 @@ Bei `user.created` wird automatisch:
    - Falls Email bereits als Lead existiert → Lead wird zu Kunde upgraded
    - Profildaten (firstName, lastName, email) synchronisiert
 
+### Personal Tenant Fallback
+
+Falls der Clerk Webhook fehlschlägt, erstellt die Auth-Middleware (`middleware/auth.ts`) automatisch einen Personal Tenant beim ersten authentifizierten API-Request:
+
+```typescript
+// In getOrCreateUser()
+await ensurePersonalTenant(user);
+```
+
+Dies stellt sicher, dass jeder User immer mindestens einen Personal Tenant hat.
+
+---
+
+## MOJO Design System Integration
+
+accounts.mojo verwendet das `@mojo/design` Package für konsistentes UI:
+
+### Layout-Komponenten
+
+| Komponente | Beschreibung |
+|------------|--------------|
+| `MojoShell` | Haupt-Layout mit Sidebar, Topbar, Background |
+| `MojoSidebar` | Collapsible Sidebar mit Sections |
+| `MojoTopbar` | Header mit App Switcher, Tenant Switcher, User Menu |
+| `MojoBackground` | Animated Background mit Noise und Orbs |
+| `MojoLogo` / `MojoIcon` | Brand Assets |
+
+### Header-Komponenten
+
+| Komponente | Beschreibung |
+|------------|--------------|
+| `MojoAppSwitcher` | Wechsel zwischen MOJO Apps |
+| `TenantSwitcher` | Organisation/Tenant wechseln |
+| `MojoUserMenu` | User Info, Dark Mode Toggle, Logout |
+
+### Clerk Organizations im Header
+
+Der Header verwendet direkt die Clerk Organizations API statt der accounts.mojo Datenbank:
+
+```typescript
+const { organization: activeOrg } = useOrganization();
+const { userMemberships, setActive } = useOrganizationList({
+  userMemberships: { infinite: true },
+});
+```
+
+**Vorteile:**
+- Echtzeit-Sync mit Clerk
+- Keine Verzögerung durch DB-Abfragen
+- Automatisches Tenant-Switching
+
+### Favicons
+
+Die Favicons kommen aus `@mojo/design`:
+- `favicon.ico`, `favicon-16x16.png`, `favicon-32x32.png`
+- `apple-touch-icon.png`
+- `android-chrome-192x192.png`, `android-chrome-512x512.png`
+- `site.webmanifest`
+
+### Theme / Dark Mode
+
+CSS-Variablen für Light und Dark Mode in `globals.css`:
+
+```css
+:root { /* Light Mode */ }
+.dark { /* Dark Mode */ }
+```
+
+Der `MojoUserMenu` enthält einen Dark Mode Toggle via `next-themes`.
+
 ---
 
 ## Deployment
@@ -639,6 +732,53 @@ make generate
 
 ```bash
 make test
+```
+
+---
+
+## Learnings & Known Issues
+
+### CORS bei Cross-Service API Calls
+
+**Problem:** Browser-Requests von `dev.account.mojo-institut.de` zu `payments.mojo-institut.de/api/me/app-entitlements` werden von CORS blockiert.
+
+**Lösung:** App-Entitlements werden nicht direkt vom Browser geladen. Stattdessen zeigt accounts.mojo alle verfügbaren MOJO Apps (als zentraler Hub).
+
+### API URL Konfiguration
+
+**Wichtig:** `NEXT_PUBLIC_API_URL` sollte OHNE `/api` Suffix konfiguriert werden:
+
+```bash
+# Richtig:
+NEXT_PUBLIC_API_URL=https://dev.account.mojo-institut.de
+
+# Falsch (führt zu /api/api/v1/me):
+NEXT_PUBLIC_API_URL=https://dev.account.mojo-institut.de/api
+```
+
+Der API-Client in `lib/api.ts` fügt `/api/v1/` automatisch hinzu.
+
+### Docker Health Checks
+
+**API:** `/api/v1/health` (benötigt `wget` im Container)
+**Web:** `/` (Root-Path, da `/api/health` ans API geroutet wird)
+
+### Clerk Webhook Fallback
+
+Falls Clerk Webhooks nicht funktionieren (z.B. in lokaler Entwicklung), erstellt die Auth-Middleware automatisch einen Personal Tenant. Dies verhindert den Fehler "Tenant: fehlt" im Header.
+
+### Traefik Routing Priorität
+
+Bei mehreren Routen auf derselben Domain (z.B. `/` und `/api`):
+
+```yaml
+# API Route (höhere Priorität)
+- "traefik.http.routers.accounts-api.rule=Host(`...`) && PathPrefix(`/api`)"
+- "traefik.http.routers.accounts-api.priority=10"
+
+# Web Route (niedrigere Priorität)
+- "traefik.http.routers.accounts-web.rule=Host(`...`)"
+- "traefik.http.routers.accounts-web.priority=1"
 ```
 
 ---
