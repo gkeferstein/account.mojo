@@ -466,6 +466,7 @@ jobs:
       contents: read
       packages: write
       id-token: write
+      pull-requests: read
 
     steps:
       - name: Checkout code
