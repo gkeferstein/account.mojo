@@ -44,7 +44,10 @@ jobs:
           NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
           echo "Configuring npm for GitHub Packages..."
+          # Remove any existing .npmrc files that might interfere
           rm -f ~/.npmrc
+          rm -f .npmrc
+          # Create .npmrc in home directory
           echo "@gkeferstein:registry=https://npm.pkg.github.com" > ~/.npmrc
           echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
           echo "always-auth=true" >> ~/.npmrc
@@ -131,7 +134,10 @@ jobs:
           NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
           echo "Configuring npm for GitHub Packages..."
+          # Remove any existing .npmrc files that might interfere
           rm -f ~/.npmrc
+          rm -f .npmrc
+          # Create .npmrc in home directory
           echo "@gkeferstein:registry=https://npm.pkg.github.com" > ~/.npmrc
           echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
           echo "always-auth=true" >> ~/.npmrc
@@ -206,7 +212,10 @@ jobs:
           NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
           echo "Configuring npm for GitHub Packages..."
+          # Remove any existing .npmrc files that might interfere
           rm -f ~/.npmrc
+          rm -f .npmrc
+          # Create .npmrc in home directory
           echo "@gkeferstein:registry=https://npm.pkg.github.com" > ~/.npmrc
           echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
           echo "always-auth=true" >> ~/.npmrc
