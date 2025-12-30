@@ -2,6 +2,7 @@ import env from '../lib/env.js';
 import type { Profile, Consent } from '@accounts/shared';
 import { BaseHttpClient } from '../lib/http-client.js';
 import { TENANT_HEADERS } from '../lib/constants.js';
+import { appLogger } from '../lib/logger.js';
 
 interface CrmClientConfig {
   baseUrl: string;
@@ -85,7 +86,7 @@ export class CrmClient extends BaseHttpClient {
     this.mockMode = env.MOCK_EXTERNAL_SERVICES || !env.CRM_API_KEY;
     
     if (this.mockMode) {
-      console.log('📦 CrmClient running in mock mode');
+      appLogger.info('CrmClient running in mock mode');
     }
   }
 
@@ -125,7 +126,10 @@ export class CrmClient extends BaseHttpClient {
         body: JSON.stringify(data),
       });
     } catch (error) {
-      console.error('Failed to create customer in CRM:', error);
+      appLogger.error('Failed to create customer in CRM', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       return null;
     }
   }
@@ -160,7 +164,11 @@ export class CrmClient extends BaseHttpClient {
       
       return await this.fetch(`/internal/customers/lookup?${params.toString()}`);
     } catch (error) {
-      console.error('Failed to lookup customer:', error);
+      appLogger.error('Failed to lookup customer', {
+        error: error instanceof Error ? error.message : String(error),
+        clerkUserId,
+        email,
+      });
       return null;
     }
   }
@@ -178,7 +186,10 @@ export class CrmClient extends BaseHttpClient {
     try {
       return await this.fetch<Profile>(`/me/profile?clerkUserId=${clerkUserId}`);
     } catch (error) {
-      console.error('Failed to fetch profile:', error);
+      appLogger.error('Failed to fetch profile', {
+        error: error instanceof Error ? error.message : String(error),
+        clerkUserId,
+      });
       return null;
     }
   }
@@ -200,7 +211,10 @@ export class CrmClient extends BaseHttpClient {
         body: JSON.stringify(data),
       });
     } catch (error) {
-      console.error('Failed to update profile:', error);
+      appLogger.error('Failed to update profile', {
+        error: error instanceof Error ? error.message : String(error),
+        clerkUserId,
+      });
       return null;
     }
   }
@@ -218,7 +232,10 @@ export class CrmClient extends BaseHttpClient {
     try {
       return await this.fetch<Consent[]>(`/me/consents?clerkUserId=${clerkUserId}`);
     } catch (error) {
-      console.error('Failed to fetch consents:', error);
+      appLogger.error('Failed to fetch consents', {
+        error: error instanceof Error ? error.message : String(error),
+        clerkUserId,
+      });
       return [];
     }
   }
@@ -251,7 +268,10 @@ export class CrmClient extends BaseHttpClient {
         body: JSON.stringify({ consents }),
       });
     } catch (error) {
-      console.error('Failed to update consents:', error);
+      appLogger.error('Failed to update consents', {
+        error: error instanceof Error ? error.message : String(error),
+        clerkUserId,
+      });
       return [];
     }
   }

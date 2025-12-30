@@ -2,16 +2,16 @@
 
 /**
  * Sidebar Component
- * Uses MOJO Design System MojoSidebar with proper navigation structure
+ * Uses MOJO Design System UnifiedSidebar for consistent navigation structure
  * Modeled after payments.mojo implementation
  * 
  * The collapsed state is managed by the parent (DashboardLayout)
- * to keep MojoShell and MojoSidebar in sync.
+ * to keep MojoShell and UnifiedSidebar in sync.
  */
 
 import { usePathname } from 'next/navigation';
-import { MojoSidebar, MojoLogo, MojoIcon } from '@mojo/design';
-import type { SidebarItem } from '@mojo/design';
+import { UnifiedSidebar } from '@mojo/design';
+import type { UnifiedSidebarSectionConfig } from '@mojo/design';
 import {
   LayoutDashboard,
   User,
@@ -27,13 +27,6 @@ import {
   Sparkles,
 } from 'lucide-react';
 
-// Define SidebarSection type (matches @mojo/design)
-interface SidebarSection {
-  id: string;
-  title?: string;
-  items: SidebarItem[];
-}
-
 export interface SidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
@@ -43,7 +36,7 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
   const pathname = usePathname();
 
   // Build navigation sections
-  const sections: SidebarSection[] = [
+  const sections: UnifiedSidebarSectionConfig[] = [
     {
       id: 'main',
       title: 'Konto',
@@ -53,28 +46,24 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
           label: 'Dashboard',
           icon: <LayoutDashboard className="h-5 w-5" />,
           href: '/',
-          active: pathname === '/',
         },
         {
           id: 'profile',
           label: 'Profil',
           icon: <User className="h-5 w-5" />,
           href: '/profile',
-          active: pathname === '/profile' || pathname?.startsWith('/profile/'),
         },
         {
           id: 'membership',
           label: 'Mitgliedschaft',
           icon: <CreditCard className="h-5 w-5" />,
           href: '/membership',
-          active: pathname === '/membership',
         },
         {
           id: 'journey',
           label: 'Meine MOJO Journey',
           icon: <Sparkles className="h-5 w-5" />,
           href: '/journey',
-          active: pathname === '/journey' || pathname?.startsWith('/journey/'),
         },
       ],
     },
@@ -87,14 +76,12 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
           label: 'Team',
           icon: <Users className="h-5 w-5" />,
           href: '/team',
-          active: pathname === '/team' || pathname?.startsWith('/team/'),
         },
         {
           id: 'organizations',
           label: 'Organisationen',
           icon: <Building2 className="h-5 w-5" />,
           href: '/organizations',
-          active: pathname === '/organizations' || pathname?.startsWith('/organizations/'),
         },
       ],
     },
@@ -107,28 +94,24 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
           label: 'Sicherheit',
           icon: <Shield className="h-5 w-5" />,
           href: '/security',
-          active: pathname === '/security' || pathname?.startsWith('/security/'),
         },
         {
           id: 'notifications',
           label: 'Benachrichtigungen',
           icon: <Bell className="h-5 w-5" />,
           href: '/notifications',
-          active: pathname === '/notifications',
         },
         {
           id: 'api-keys',
           label: 'API Keys',
           icon: <Key className="h-5 w-5" />,
           href: '/api-keys',
-          active: pathname === '/api-keys' || pathname?.startsWith('/api-keys/'),
         },
         {
           id: 'preferences',
           label: 'Präferenzen',
           icon: <Settings className="h-5 w-5" />,
           href: '/preferences',
-          active: pathname === '/preferences',
         },
       ],
     },
@@ -141,27 +124,24 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
           label: 'Daten & Privatsphäre',
           icon: <Database className="h-5 w-5" />,
           href: '/data',
-          active: pathname === '/data' || pathname?.startsWith('/data/'),
         },
         {
           id: 'support',
           label: 'Hilfe & Support',
           icon: <HelpCircle className="h-5 w-5" />,
           href: '/support',
-          active: pathname === '/support' || pathname?.startsWith('/support/'),
         },
       ],
     },
   ];
 
   return (
-    <MojoSidebar
-      logo={<MojoLogo size="sm" mode="dark" />}
-      collapsedLogo={<MojoIcon size={28} mode="dark" />}
+    <UnifiedSidebar
       sections={sections}
+      pathname={pathname}
       collapsed={collapsed}
-      onToggleCollapse={onToggleCollapse}
-      collapsible
+      onCollapsedChange={onToggleCollapse}
+      storageKey="accounts-sidebar-collapsed"
     />
   );
 }

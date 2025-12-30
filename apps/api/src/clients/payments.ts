@@ -2,6 +2,7 @@ import env from '../lib/env.js';
 import type { Subscription, Invoice, Entitlement, AppEntitlementsResponse } from '@accounts/shared';
 import { BaseHttpClient } from '../lib/http-client.js';
 import { TENANT_HEADERS } from '../lib/constants.js';
+import { appLogger } from '../lib/logger.js';
 
 interface BillingPortalResponse {
   url: string;
@@ -87,7 +88,7 @@ export class PaymentsClient extends BaseHttpClient {
     this.mockMode = env.MOCK_EXTERNAL_SERVICES || !env.PAYMENTS_API_KEY;
     
     if (this.mockMode) {
-      console.log('📦 PaymentsClient running in mock mode');
+      appLogger.info('PaymentsClient running in mock mode');
     }
   }
 
@@ -116,7 +117,11 @@ export class PaymentsClient extends BaseHttpClient {
       // Note: payments.mojo returns the subscription directly, not wrapped in {success, data}
       return await this.fetch<Subscription>(`/me/subscription?userId=${userId}&tenantId=${tenantId}`);
     } catch (error) {
-      console.error('Failed to fetch subscription:', error);
+      appLogger.error('Failed to fetch subscription', {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+        tenantId,
+      });
       return null;
     }
   }
@@ -131,7 +136,11 @@ export class PaymentsClient extends BaseHttpClient {
       // Note: payments.mojo returns the array directly, not wrapped in {success, data}
       return await this.fetch<Invoice[]>(`/me/invoices?userId=${userId}&tenantId=${tenantId}`);
     } catch (error) {
-      console.error('Failed to fetch invoices:', error);
+      appLogger.error('Failed to fetch invoices', {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+        tenantId,
+      });
       return [];
     }
   }
@@ -146,7 +155,11 @@ export class PaymentsClient extends BaseHttpClient {
       // Note: payments.mojo returns the array directly, not wrapped in {success, data}
       return await this.fetch<Entitlement[]>(`/me/entitlements?userId=${userId}&tenantId=${tenantId}`);
     } catch (error) {
-      console.error('Failed to fetch entitlements:', error);
+      appLogger.error('Failed to fetch entitlements', {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+        tenantId,
+      });
       return [];
     }
   }
@@ -164,7 +177,11 @@ export class PaymentsClient extends BaseHttpClient {
     try {
       return await this.fetch<AppEntitlementsResponse>(`/me/app-entitlements?userId=${userId}&tenantId=${tenantId}`);
     } catch (error) {
-      console.error('Failed to fetch app entitlements:', error);
+      appLogger.error('Failed to fetch app entitlements', {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+        tenantId,
+      });
       return { entitlements: [], isPlatformAdmin: false };
     }
   }
@@ -204,7 +221,10 @@ export class PaymentsClient extends BaseHttpClient {
     try {
       return await this.fetch<any>(`/internal/gdpr/export-by-clerk/${clerkUserId}`);
     } catch (error) {
-      console.error('Failed to fetch GDPR export from payments.mojo:', error);
+      appLogger.error('Failed to fetch GDPR export from payments.mojo', {
+        error: error instanceof Error ? error.message : String(error),
+        clerkUserId,
+      });
       throw error;
     }
   }
@@ -236,7 +256,11 @@ export class PaymentsClient extends BaseHttpClient {
         body: JSON.stringify({ reason, request_id: requestId }),
       });
     } catch (error) {
-      console.error('Failed to anonymize customer in payments.mojo:', error);
+      appLogger.error('Failed to anonymize customer in payments.mojo', {
+        error: error instanceof Error ? error.message : String(error),
+        clerkUserId,
+        reason,
+      });
       throw error;
     }
   }
@@ -300,7 +324,11 @@ export class PaymentsClient extends BaseHttpClient {
         return await response.text();
       } catch (fetchError) {
         clearTimeout(timeoutId);
-        console.error('Failed to fetch data portability export from payments.mojo:', fetchError);
+        appLogger.error('Failed to fetch data portability export from payments.mojo', {
+          error: fetchError instanceof Error ? fetchError.message : String(fetchError),
+          clerkUserId,
+          format,
+        });
         throw fetchError;
       }
     }
