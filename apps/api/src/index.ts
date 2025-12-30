@@ -7,6 +7,7 @@ import env, { validateEnv } from './lib/env.js';
 import prisma from './lib/prisma.js';
 import { registerAuthPlugin, authMiddleware } from './middleware/auth.js';
 import errorHandler from './middleware/error-handler.js';
+import { appLogger } from './lib/logger.js';
 import healthRoutes from './routes/health.js';
 import meRoutes from './routes/me.js';
 import tenantsRoutes from './routes/tenants.js';
@@ -23,7 +24,10 @@ import internalRoutes from './routes/internal.js';
 try {
   validateEnv();
 } catch (error) {
-  console.error('Environment validation failed:', error);
+  // Use appLogger for startup errors (console.error is acceptable for startup failures)
+  appLogger.error('Environment validation failed', { 
+    error: error instanceof Error ? error.message : String(error) 
+  });
   process.exit(1);
 }
 
