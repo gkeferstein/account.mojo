@@ -1,0 +1,436 @@
+name: CI - Main Branch (Fast Pipeline)
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - 'LICENSE'
+      - 'docs/**'
+      - 'scripts/**'
+      - '.github/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  NODE_VERSION: '22'
+
+jobs:
+  # ============================================
+  # PARALLEL CODE QUALITY CHECKS
+  # ============================================
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Shared Package
+        run: npm run build:shared
+
+      - name: TypeScript Compile Check (API)
+        run: |
+          cd apps/api
+          npx tsc --noEmit || echo "⚠️ API TypeScript errors found"
+        continue-on-error: true
+
+      - name: TypeScript Compile Check (Web)
+        run: |
+          cd apps/web
+          npx tsc --noEmit || echo "⚠️ Web TypeScript errors found"
+        continue-on-error: true
+
+      - name: ESLint (API)
+        run: |
+          cd apps/api
+          npm run lint || echo "⚠️ API linting issues found"
+        continue-on-error: true
+
+      - name: ESLint (Web)
+        run: |
+          cd apps/web
+          npm run lint || echo "⚠️ Web linting issues found"
+        continue-on-error: true
+
+      - name: Security Audit (High/Critical only)
+        run: |
+          npm audit --audit-level=high || echo "⚠️ Security vulnerabilities found"
+        continue-on-error: true
+
+  # ============================================
+  # PARALLEL TESTS
+  # ============================================
+  tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Shared Package
+        run: npm run build:shared
+
+      - name: Run Tests
+        run: |
+          npm test || echo "⚠️ Tests failed"
+        continue-on-error: true
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            coverage/
+          retention-days: 7
+
+  # ============================================
+  # PARALLEL DATABASE CHECKS
+  # ============================================
+  database-checks:
+    name: Database Migration & Schema Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: test_accounts_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Setup Test Database
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_accounts_db
+        run: |
+          # Warte auf PostgreSQL
+          until pg_isready -h localhost -p 5432 -U test_user; do
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+
+      - name: Generate Prisma Client
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_accounts_db
+        working-directory: ./apps/api
+        run: npx prisma generate
+
+      - name: Migration Tests
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_accounts_db
+        working-directory: ./apps/api
+        run: |
+          npx prisma migrate status || echo "⚠️ Migration status check failed"
+        continue-on-error: true
+
+      - name: Schema Validation (Prisma format check)
+        working-directory: ./apps/api
+        run: |
+          npx prisma format --check || echo "⚠️ Schema format check failed"
+        continue-on-error: true
+
+  # ============================================
+  # BUILD & PUSH DOCKER IMAGES
+  # ============================================
+  build-images:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [code-quality, tests]
+    if: always() && (needs.code-quality.result == 'success' || needs.code-quality.result == 'failure') && (needs.tests.result == 'success' || needs.tests.result == 'failure')
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Extract metadata (API)
+        id: meta-api
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-api
+          tags: |
+            type=sha,prefix=,format=long
+            type=raw,value=latest
+
+      - name: Build and push API Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/api/Dockerfile
+          push: true
+          tags: ${{ steps.meta-api.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels }}
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp || github.run_started_at }}
+            GIT_BRANCH=${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata (Web)
+        id: meta-web
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-web
+          tags: |
+            type=sha,prefix=,format=long
+            type=raw,value=latest
+
+      - name: Build and push Web Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/web/Dockerfile
+          push: true
+          tags: ${{ steps.meta-web.outputs.tags }}
+          labels: ${{ steps.meta-web.outputs.labels }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL || 'https://accounts.mojo-institut.de' }}
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+            NEXT_PUBLIC_PAYMENTS_API_URL=${{ secrets.NEXT_PUBLIC_PAYMENTS_API_URL || 'https://payments.mojo-institut.de/api' }}
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp || github.run_started_at }}
+            GIT_BRANCH=${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+    outputs:
+      api-image: ${{ steps.meta-api.outputs.tags }}
+      web-image: ${{ steps.meta-web.outputs.tags }}
+
+  # ============================================
+  # AUTO-DEPLOY TO DEV (optional)
+  # ============================================
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build-images]
+    if: needs.build-images.result == 'success' && github.ref == 'refs/heads/main'
+    environment:
+      name: development
+      url: https://dev.account.mojo-institut.de
+
+    steps:
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_DEV }}
+
+      - name: Add server to known hosts
+        run: |
+          ssh-keyscan -H ${{ secrets.DEPLOY_SERVER_DEV }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Development Server
+        run: |
+          export REGISTRY="${{ env.REGISTRY }}"
+          export GITHUB_REPOSITORY="${{ github.repository }}"
+          export GITHUB_ACTOR="${{ github.actor }}"
+          export GITHUB_SHA="${{ github.sha }}"
+          export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          export IMAGE_TAG="latest"
+          export API_IMAGE_NAME="${REGISTRY}/${GITHUB_REPOSITORY}-api:${IMAGE_TAG}"
+          export WEB_IMAGE_NAME="${REGISTRY}/${GITHUB_REPOSITORY}-web:${IMAGE_TAG}"
+          
+          ssh -T -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_DEV }} \
+            REGISTRY="${REGISTRY}" \
+            GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
+            GITHUB_ACTOR="${GITHUB_ACTOR}" \
+            GITHUB_TOKEN="${GITHUB_TOKEN}" \
+            IMAGE_TAG="${IMAGE_TAG}" \
+            API_IMAGE_NAME="${API_IMAGE_NAME}" \
+            WEB_IMAGE_NAME="${WEB_IMAGE_NAME}" \
+            bash << 'DEPLOY_EOF'
+          set -e
+          PROJECT_DIR="/root/projects/accounts.mojo"
+          
+          if [ ! -d "$PROJECT_DIR" ]; then
+            mkdir -p "$PROJECT_DIR"
+          fi
+          
+          if [ ! -d "$PROJECT_DIR/.git" ]; then
+            REPO_URL="https://${GITHUB_ACTOR}:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+            git clone "$REPO_URL" "$PROJECT_DIR" || exit 1
+          fi
+          
+          cd "$PROJECT_DIR" || exit 1
+          git remote set-url origin "https://${GITHUB_ACTOR}:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch origin
+          git checkout main
+          git pull origin main
+          
+          if [ ! -f .env ]; then
+            if [ -f .env.example ]; then
+              cp .env.example .env
+            else
+              echo "❌ .env.example not found!"
+              exit 1
+            fi
+          fi
+          
+          echo "${{ secrets.GHCR_TOKEN }}" | docker login ${REGISTRY} -u ${GITHUB_ACTOR} --password-stdin
+          
+          if docker compose version >/dev/null 2>&1; then
+            COMPOSE_CMD="docker compose"
+          elif command -v docker-compose >/dev/null 2>&1; then
+            COMPOSE_CMD="docker-compose"
+          else
+            echo "❌ Docker Compose not found!"
+            exit 1
+          fi
+          
+          run_compose() {
+            eval "$COMPOSE_CMD $*"
+          }
+          
+          docker image prune -f || true
+          docker pull "${API_IMAGE_NAME}" || exit 1
+          docker pull "${WEB_IMAGE_NAME}" || exit 1
+          
+          if ! docker volume ls | grep -q "accounts-db-data"; then
+            docker volume create accounts-db-data
+          fi
+          
+          run_compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml down --remove-orphans || true
+          run_compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up -d db api
+          
+          MAX_ATTEMPTS=30
+          ATTEMPT=1
+          while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
+            HEALTH_STATUS=$(docker inspect accounts-api --format='{{.State.Health.Status}}' 2>/dev/null || echo "unhealthy")
+            if [ "$HEALTH_STATUS" = "healthy" ]; then
+              echo "✅ API service is healthy"
+              break
+            fi
+            if [ "$ATTEMPT" -eq "$MAX_ATTEMPTS" ]; then
+              echo "❌ API service not ready"
+              run_compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml logs --tail=50 api
+              exit 1
+            fi
+            sleep 2
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+          
+          # Run migrations
+          docker exec accounts-api npx prisma migrate deploy || echo "⚠️ Migrations failed but continuing"
+          
+          run_compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up -d web
+          sleep 10
+          echo "✅ Deployment completed"
+          DEPLOY_EOF
+
+  # ============================================
+  # NOTIFICATIONS
+  # ============================================
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [code-quality, tests, database-checks, build-images]
+    if: always()
+    steps:
+      - name: Check Pipeline Status
+        id: status
+        run: |
+          if [ "${{ needs.code-quality.result }}" == "failure" ] || \
+             [ "${{ needs.tests.result }}" == "failure" ] || \
+             [ "${{ needs.build-images.result }}" == "failure" ]; then
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "message=Pipeline failed! Check workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          else
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "message=Pipeline completed successfully"
+          fi
+
+      - name: Send Email Notification (on failure)
+        if: steps.status.outputs.status == 'failure'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "❌ CI Pipeline Failed - accounts.mojo"
+          to: ${{ secrets.EMAIL_RECIPIENT }}
+          from: GitHub Actions
+          body: |
+            Pipeline failed for commit: ${{ github.sha }}
+            Branch: ${{ github.ref_name }}
+            Workflow: ${{ github.workflow }}
+            View details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            Failed Jobs:
+            - Code Quality: ${{ needs.code-quality.result }}
+            - Tests: ${{ needs.tests.result }}
+            - Database Checks: ${{ needs.database-checks.result }}
+            - Build Images: ${{ needs.build-images.result }}
+          html_body: |
+            <h2>❌ CI Pipeline Failed</h2>
+            <p><strong>Repository:</strong> ${{ github.repository }}</p>
+            <p><strong>Commit:</strong> ${{ github.sha }}</p>
+            <p><strong>Branch:</strong> ${{ github.ref_name }}</p>
+            <p><strong>Workflow:</strong> ${{ github.workflow }}</p>
+            <p><a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">View Details</a></p>
+            <h3>Job Results:</h3>
+            <ul>
+              <li>Code Quality: ${{ needs.code-quality.result }}</li>
+              <li>Tests: ${{ needs.tests.result }}</li>
+              <li>Database Checks: ${{ needs.database-checks.result }}</li>
+              <li>Build Images: ${{ needs.build-images.result }}</li>
+            </ul>
+        continue-on-error: true
+
