@@ -11,7 +11,7 @@
 
 import { ReactNode, useState, useCallback } from 'react';
 import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
-import { MojoShell, MojoBackground } from '@mojo/design';
+import { MojoShell, MojoBackground } from '@gkeferstein/design';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { useTenant } from '@/providers/TenantProvider';

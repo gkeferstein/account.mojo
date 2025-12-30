@@ -6,8 +6,8 @@ const config: Config = {
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
-    // Include @mojo/design components
-    "./node_modules/@mojo/design/**/*.{js,ts,jsx,tsx}",
+    // Include @gkeferstein/design components
+    "./node_modules/@gkeferstein/design/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {

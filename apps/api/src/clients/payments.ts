@@ -99,7 +99,7 @@ export class PaymentsClient extends BaseHttpClient {
     return this.fetchWithRetry<T>(endpoint, {
       ...options,
       headers: {
-        // Use standardized @mojo/tenant headers
+        // Use standardized @gkeferstein/tenant headers
         [TENANT_HEADERS.SERVICE_NAME]: 'accounts.mojo',
         ...options.headers,
       },

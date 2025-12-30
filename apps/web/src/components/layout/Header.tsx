@@ -2,15 +2,15 @@
 
 /**
  * Header Component
- * Verwendet die einheitliche MojoTopbar-Komponente aus @mojo/design
+ * Verwendet die einheitliche MojoTopbar-Komponente aus @gkeferstein/design
  * 
  * Uses Clerk Organizations for tenant management
  */
 
-import { MojoTopbar, MojoTopbarSkeleton } from '@mojo/design';
+import { MojoTopbar, MojoTopbarSkeleton } from '@gkeferstein/design';
 import { useClerk, useOrganizationList, useOrganization, useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
-import type { Tenant, MojoUser } from '@mojo/design';
+import type { Tenant, MojoUser } from '@gkeferstein/design';
 import { useMemo, useCallback } from 'react';
 
 export function Header() {

@@ -10,8 +10,8 @@
  */
 
 import { usePathname } from 'next/navigation';
-import { UnifiedSidebar } from '@mojo/design';
-import type { UnifiedSidebarSectionConfig } from '@mojo/design';
+import { UnifiedSidebar } from '@gkeferstein/design';
+import type { UnifiedSidebarSectionConfig } from '@gkeferstein/design';
 import {
   LayoutDashboard,
   User,
