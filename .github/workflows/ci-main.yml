@@ -432,8 +432,17 @@ jobs:
             echo "message=Pipeline completed successfully"
           fi
 
+      - name: Check Email Recipient
+        id: check-email
+        run: |
+          if [ -n "${{ secrets.EMAIL_RECIPIENT }}" ]; then
+            echo "email_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "email_exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Send Email Notification (on failure)
-        if: steps.status.outputs.status == 'failure' && secrets.EMAIL_RECIPIENT != ''
+        if: steps.status.outputs.status == 'failure' && steps.check-email.outputs.email_exists == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
