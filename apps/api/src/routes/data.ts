@@ -91,7 +91,7 @@ export async function dataRoutes(fastify: FastifyInstance): Promise<void> {
 
     // Process export asynchronously (in production, use a job queue)
     processDataExport(dataRequest.id, auth.userId, auth.clerkUserId).catch((error) => {
-      console.error('Failed to process data export:', error);
+      request.log.error('Failed to process data export', { error, dataRequestId: dataRequest.id });
     });
 
     return reply.status(201).send({
@@ -162,7 +162,7 @@ export async function dataRoutes(fastify: FastifyInstance): Promise<void> {
     // Process deletion asynchronously (in production, use a job queue with delay)
     // For now, process immediately - in production, add a 30-day delay
     processAccountDeletion(dataRequest.id, auth.userId, auth.clerkUserId, input.reason).catch((error) => {
-      console.error('Failed to process account deletion:', error);
+      request.log.error('Failed to process account deletion', { error, dataRequestId: dataRequest.id });
     });
 
     return reply.status(201).send({

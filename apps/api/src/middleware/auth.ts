@@ -318,7 +318,7 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
     } : null;
 
   } catch (error) {
-    console.error('Auth error:', error);
+    appLogger.error('Auth error', { error: error instanceof Error ? error.message : String(error) });
     return reply.status(401).send({ error: 'Unauthorized', message: 'Invalid token' });
   }
 }

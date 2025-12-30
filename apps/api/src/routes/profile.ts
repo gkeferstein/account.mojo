@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma.js';
 import crmClient from '../clients/crm.js';
 import { logAuditEvent, AuditActions } from '../services/audit.js';
-import { profileUpdateSchema } from '@accounts/shared';
+import { profileUpdateSchema, consentsUpdateSchema } from '@accounts/shared';
 import { isCacheStale, updateProfileCache, CACHE_TTL } from '../services/cache.service.js';
 
 export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
@@ -157,7 +157,7 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
   // PATCH /profile/consents - Update user consents (writes to SSOT kontakte.mojo)
   fastify.patch('/profile/consents', async (request, reply) => {
     const { auth } = request;
-    const { consents } = request.body as { consents: Array<{ type: string; granted: boolean }> };
+    const input = consentsUpdateSchema.parse(request.body);
 
     if (!auth.activeTenant) {
       return reply.status(400).send({
@@ -167,7 +167,7 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     // Update in kontakte.mojo (SSOT) using clerkUserId
-    const updatedConsents = await crmClient.updateConsents(auth.clerkUserId, consents);
+    const updatedConsents = await crmClient.updateConsents(auth.clerkUserId, input.consents);
 
     await logAuditEvent(request, {
       action: AuditActions.PREFERENCES_UPDATE,
