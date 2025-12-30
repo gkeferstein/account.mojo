@@ -374,7 +374,7 @@ jobs:
         with:
           context: .
           file: ./apps/api/Dockerfile
-          push: ${{ secrets.GHCR_TOKEN && 'true' || 'false' }}
+          push: true
           tags: ${{ steps.meta-api.outputs.tags }}
           labels: ${{ steps.meta-api.outputs.labels }}
           build-args: |
