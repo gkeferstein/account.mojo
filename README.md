@@ -2,6 +2,7 @@
 
 Das zentrale Self-Service-Portal für MOJO-Kunden zur Verwaltung ihrer digitalen Identität und Abonnements.
 
+**Version:** 0.3.0  
 **Domain:** accounts.mojo-institut.de  
 **Status:** Production-Ready
 
@@ -590,6 +591,8 @@ Der `MojoUserMenu` enthält einen Dark Mode Toggle via `next-themes`.
 
 ## Deployment
 
+> **📖 Ausführliche Anleitung:** Siehe [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) für vollständige Deployment-Dokumentation mit Checklisten und Troubleshooting.
+
 ### Production (Hetzner)
 
 ```bash
@@ -603,7 +606,7 @@ cd accounts.mojo
 
 # 3. Environment konfigurieren
 cp env.example .env
-nano .env  # Secrets eintragen
+nano .env  # Secrets eintragen (siehe DEPLOYMENT.md für vollständige Checkliste)
 
 # 4. Netzwerk erstellen
 make network
@@ -783,4 +786,12 @@ Bei mehreren Routen auf derselben Domain (z.B. `/` und `/api`):
 
 ---
 
-**Zuletzt aktualisiert:** 2024-12-29
+## Release Informationen
+
+- **Aktuelle Version:** 0.3.0
+- **Changelog:** Siehe [CHANGELOG.md](./CHANGELOG.md)
+- **Deployment Guide:** Siehe [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)
+
+---
+
+**Zuletzt aktualisiert:** 2024-12-29 (v0.3.0)

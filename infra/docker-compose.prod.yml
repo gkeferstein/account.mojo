@@ -1,0 +1,69 @@
+# ==========================================
+# Production Override
+# ==========================================
+# This file extends docker-compose.yml with production-specific settings
+# Usage: docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml up -d
+#
+# IMPORTANT: Ensure all environment variables are set in .env file before running!
+# See env.example for required variables.
+
+services:
+  api:
+    environment:
+      # Production environment
+      NODE_ENV: production
+      # Production frontend URL
+      FRONTEND_URL: ${FRONTEND_URL:-https://accounts.mojo-institut.de}
+      # Never mock external services in production
+      MOCK_EXTERNAL_SERVICES: false
+      # Production secrets (must be set via .env)
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
+      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET}
+      PAYMENTS_API_KEY: ${PAYMENTS_API_KEY}
+      CRM_API_KEY: ${CRM_API_KEY}
+      WEBHOOK_SECRET_PAYMENTS: ${WEBHOOK_SECRET_PAYMENTS}
+      WEBHOOK_SECRET_CRM: ${WEBHOOK_SECRET_CRM}
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+    # Production logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    # Restart policy
+    restart: unless-stopped
+
+  web:
+    build:
+      args:
+        # Production API URL (without /api suffix)
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://accounts.mojo-institut.de}
+        # Production Clerk key (must be set via .env)
+        - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        - NEXT_PUBLIC_PAYMENTS_API_URL=${NEXT_PUBLIC_PAYMENTS_API_URL:-https://payments.mojo-institut.de/api}
+    environment:
+      NODE_ENV: production
+      # Production Clerk key
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    restart: unless-stopped
+
+  db:
+    # Production database settings
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-accounts}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-accounts_db}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    restart: unless-stopped
+

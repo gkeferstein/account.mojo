@@ -1,0 +1,40 @@
+# ==========================================
+# Development Override
+# ==========================================
+# This file extends docker-compose.yml with development-specific settings
+# Usage: docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up
+
+services:
+  api:
+    environment:
+      # Development environment
+      NODE_ENV: development
+      # Development frontend URL
+      FRONTEND_URL: ${FRONTEND_URL:-https://dev.account.mojo-institut.de}
+      # Mock external services for local development (optional)
+      MOCK_EXTERNAL_SERVICES: ${MOCK_EXTERNAL_SERVICES:-false}
+    # Development logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  web:
+    build:
+      args:
+        # Development API URL (without /api suffix)
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://dev.account.mojo-institut.de}
+        # Development Clerk key (can use test keys)
+        - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-pk_test_bWVhc3VyZWQtYmVkYnVnLTE5LmNsZXJrLmFjY291bnRzLmRldiQ}
+        - NEXT_PUBLIC_PAYMENTS_API_URL=${NEXT_PUBLIC_PAYMENTS_API_URL:-https://payments.mojo-institut.de/api}
+    environment:
+      NODE_ENV: development
+      # Development Clerk key
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-pk_test_bWVhc3VyZWQtYmVkYnVnLTE5LmNsZXJrLmFjY291bnRzLmRldiQ}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
