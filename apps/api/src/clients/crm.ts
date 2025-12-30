@@ -1,12 +1,7 @@
 import env from '../lib/env.js';
 import type { Profile, Consent } from '@accounts/shared';
-
-// Tenant headers (local definition to avoid @mojo/tenant dependency)
-const TENANT_HEADERS = {
-  TENANT_ID: 'x-tenant-id',
-  TENANT_SLUG: 'x-tenant-slug',
-  SERVICE_NAME: 'x-service-name',
-} as const;
+import { BaseHttpClient } from '../lib/http-client.js';
+import { TENANT_HEADERS } from '../lib/constants.js';
 
 interface CrmClientConfig {
   baseUrl: string;
@@ -73,42 +68,40 @@ interface CreateCustomerResponse {
   existing?: boolean;
 }
 
-export class CrmClient {
-  private config: CrmClientConfig;
+export class CrmClient extends BaseHttpClient {
+  private tenantSlug: string;
   private mockMode: boolean;
 
   constructor() {
-    this.config = {
+    super({
       baseUrl: env.CRM_API_URL,
       apiKey: env.CRM_API_KEY,
-      tenantSlug: env.CRM_TENANT_SLUG || 'mojo',
-    };
-    this.mockMode = env.MOCK_EXTERNAL_SERVICES || !this.config.apiKey;
+      timeout: 10000, // 10 seconds
+      maxRetries: 3,
+      retryDelay: 1000, // 1 second initial delay
+    });
+    
+    this.tenantSlug = env.CRM_TENANT_SLUG || 'mojo';
+    this.mockMode = env.MOCK_EXTERNAL_SERVICES || !env.CRM_API_KEY;
     
     if (this.mockMode) {
       console.log('📦 CrmClient running in mock mode');
     }
   }
 
+  /**
+   * Internal fetch with tenant headers and retry logic
+   */
   private async fetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const response = await fetch(`${this.config.baseUrl}${endpoint}`, {
+    return this.fetchWithRetry<T>(endpoint, {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.config.apiKey}`,
         // Use standardized @mojo/tenant headers
-        [TENANT_HEADERS.TENANT_SLUG]: this.config.tenantSlug,
+        [TENANT_HEADERS.TENANT_SLUG]: this.tenantSlug,
         [TENANT_HEADERS.SERVICE_NAME]: 'accounts.mojo',
         ...options.headers,
       },
     });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(error.message || error.error?.message || `HTTP ${response.status}`);
-    }
-
-    return response.json();
   }
 
   /**

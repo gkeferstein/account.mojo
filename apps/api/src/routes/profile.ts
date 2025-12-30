@@ -32,25 +32,42 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
 
     if (!profileCache || cacheStale) {
       // Fetch from kontakte.mojo (SSOT) using clerkUserId
-      const crmProfile = await crmClient.getProfile(auth.clerkUserId);
+      // Use fallback: if fetch fails, use stale cache if available
+      try {
+        const crmProfile = await crmClient.getProfile(auth.clerkUserId);
 
-      if (crmProfile) {
-        profileCache = await prisma.profileCache.upsert({
-          where: {
-            tenantId_userId: {
+        if (crmProfile) {
+          profileCache = await prisma.profileCache.upsert({
+            where: {
+              tenantId_userId: {
+                tenantId: auth.activeTenant.id,
+                userId: auth.userId,
+              },
+            },
+            create: {
               tenantId: auth.activeTenant.id,
               userId: auth.userId,
+              payload: crmProfile,
             },
-          },
-          create: {
-            tenantId: auth.activeTenant.id,
-            userId: auth.userId,
-            payload: crmProfile,
-          },
-          update: {
-            payload: crmProfile,
-          },
+            update: {
+              payload: crmProfile,
+            },
+          });
+        }
+      } catch (error) {
+        // Fallback: Use stale cache if available, otherwise continue with default
+        request.log.warn({
+          err: error,
+          message: 'Failed to refresh profile from CRM, using cache if available',
+          userId: auth.userId,
+          hasStaleCache: !!profileCache,
         });
+        
+        // If we don't have any cache, we'll fall through to default values
+        if (!profileCache) {
+          // No cache available, will use defaults below
+        }
+        // If we have stale cache, we'll use it (already set above)
       }
     }
 
