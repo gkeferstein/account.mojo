@@ -1,6 +1,6 @@
 {
   "name": "accounts.mojo",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "MOJO Customer Account Portal - Multi-tenant account management",
   "workspaces": [
