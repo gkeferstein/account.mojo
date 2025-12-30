@@ -146,9 +146,11 @@ export async function internalRoutes(fastify: FastifyInstance): Promise<void> {
     });
 
     if (!tenant) {
+      // Don't expose clerkOrgId in error message (security: information disclosure)
+      request.log.warn('Tenant not found in internal API', { clerkOrgId });
       return reply.status(404).send({
         error: 'Not Found',
-        message: `Tenant not found: ${clerkOrgId}`,
+        message: 'Tenant not found',
       });
     }
 
@@ -179,9 +181,11 @@ export async function internalRoutes(fastify: FastifyInstance): Promise<void> {
     });
 
     if (!tenant) {
+      // Don't expose clerkOrgId in error message (security: information disclosure)
+      request.log.warn('Tenant not found in internal API', { clerkOrgId });
       return reply.status(404).send({
         error: 'Not Found',
-        message: `Tenant not found: ${clerkOrgId}`,
+        message: 'Tenant not found',
       });
     }
 
