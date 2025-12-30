@@ -12,6 +12,10 @@ on:
       - 'scripts/**'
       - '.github/**'
 
+permissions:
+  contents: read
+  packages: read
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -24,7 +28,7 @@ jobs:
   code-quality:
     name: Code Quality Checks
     runs-on: ubuntu-latest
-    timeout-minutes: 1
+    timeout-minutes: 2
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,12 +40,26 @@ jobs:
           cache: 'npm'
 
       - name: Configure npm for GitHub Packages
+        env:
+          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
-          echo "@gkeferstein:registry=https://npm.pkg.github.com" >> .npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+          echo "Configuring npm for GitHub Packages..."
+          rm -f ~/.npmrc
+          echo "@gkeferstein:registry=https://npm.pkg.github.com" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+          echo "always-auth=true" >> ~/.npmrc
+          echo ""
+          echo "Final .npmrc:"
+          cat ~/.npmrc
+          echo ""
+          echo "Testing npm config..."
+          npm config list
 
       - name: Install Dependencies
-        run: npm ci
+        env:
+          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          npm install --legacy-peer-deps
 
       - name: Build Shared Package
         run: npm run build:shared
@@ -97,7 +115,7 @@ jobs:
   tests:
     name: Unit Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 1
+    timeout-minutes: 2
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -109,12 +127,26 @@ jobs:
           cache: 'npm'
 
       - name: Configure npm for GitHub Packages
+        env:
+          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
-          echo "@gkeferstein:registry=https://npm.pkg.github.com" >> .npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+          echo "Configuring npm for GitHub Packages..."
+          rm -f ~/.npmrc
+          echo "@gkeferstein:registry=https://npm.pkg.github.com" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+          echo "always-auth=true" >> ~/.npmrc
+          echo ""
+          echo "Final .npmrc:"
+          cat ~/.npmrc
+          echo ""
+          echo "Testing npm config..."
+          npm config list
 
       - name: Install Dependencies
-        run: npm ci
+        env:
+          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          npm install --legacy-peer-deps
 
       - name: Build Shared Package
         run: npm run build:shared
@@ -144,7 +176,7 @@ jobs:
   database-checks:
     name: Database Migration & Schema Checks
     runs-on: ubuntu-latest
-    timeout-minutes: 1
+    timeout-minutes: 2
     services:
       postgres:
         image: postgres:16-alpine
@@ -170,12 +202,26 @@ jobs:
           cache: 'npm'
 
       - name: Configure npm for GitHub Packages
+        env:
+          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
-          echo "@gkeferstein:registry=https://npm.pkg.github.com" >> .npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+          echo "Configuring npm for GitHub Packages..."
+          rm -f ~/.npmrc
+          echo "@gkeferstein:registry=https://npm.pkg.github.com" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+          echo "always-auth=true" >> ~/.npmrc
+          echo ""
+          echo "Final .npmrc:"
+          cat ~/.npmrc
+          echo ""
+          echo "Testing npm config..."
+          npm config list
 
       - name: Install Dependencies
-        run: npm ci
+        env:
+          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          npm install --legacy-peer-deps
 
       - name: Setup Test Database
         env:
@@ -221,7 +267,7 @@ jobs:
   build-images:
     name: Build & Push Docker Images
     runs-on: ubuntu-latest
-    timeout-minutes: 1
+    timeout-minutes: 2
     needs: [code-quality, tests]
     if: always()
     permissions:
@@ -315,7 +361,7 @@ jobs:
   deploy-dev:
     name: Deploy to Development
     runs-on: ubuntu-latest
-    timeout-minutes: 1
+    timeout-minutes: 2
     needs: [build-images]
     if: needs.build-images.result == 'success' && github.ref == 'refs/heads/main'
     environment:
