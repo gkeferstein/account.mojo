@@ -62,7 +62,7 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
-          npm install --legacy-peer-deps
+          npm ci --legacy-peer-deps
 
       - name: Build Shared Package
         run: npm run build:shared
@@ -152,7 +152,7 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
-          npm install --legacy-peer-deps
+          npm ci --legacy-peer-deps
 
       - name: Build Shared Package
         run: npm run build:shared
@@ -230,7 +230,7 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
-          npm install --legacy-peer-deps
+          npm ci --legacy-peer-deps
 
       - name: Setup Test Database
         env:
