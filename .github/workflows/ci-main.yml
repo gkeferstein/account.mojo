@@ -431,7 +431,7 @@ jobs:
           fi
 
       - name: Send Email Notification (on failure)
-        if: steps.status.outputs.status == 'failure' && secrets.EMAIL_RECIPIENT != ''
+        if: steps.status.outputs.status == 'failure' && ${{ secrets.EMAIL_RECIPIENT }}
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
