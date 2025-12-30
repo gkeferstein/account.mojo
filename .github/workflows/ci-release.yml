@@ -458,7 +458,6 @@ jobs:
     timeout-minutes: 20
     needs: [prepare-release, code-quality-strict, tests-comprehensive]
     if: |
-      always() &&
       needs.prepare-release.result == 'success' &&
       (needs.code-quality-strict.result == 'success' || needs.code-quality-strict.result == 'failure') &&
       (needs.tests-comprehensive.result == 'success' || needs.tests-comprehensive.result == 'failure')
