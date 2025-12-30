@@ -43,7 +43,7 @@ function createTenantHeaders(tenant: MojoTenant, serviceName: string): Record<st
 declare module 'fastify' {
   interface FastifyRequest {
     auth: AuthContext;
-    /** @mojo/tenant compatible tenant context */
+    /** @gkeferstein/tenant compatible tenant context */
     tenantContext: TenantContext | null;
   }
 }
@@ -64,7 +64,7 @@ const clerkClient = env.CLERK_SECRET_KEY
   : null;
 
 /**
- * Convert Prisma Tenant to @mojo/tenant Tenant interface
+ * Convert Prisma Tenant to @gkeferstein/tenant Tenant interface
  */
 function toMojoTenant(tenant: Tenant): MojoTenant {
   return {
@@ -245,7 +245,7 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
           tenants,
         };
 
-        // Set @mojo/tenant compatible context
+        // Set @gkeferstein/tenant compatible context
         request.tenantContext = activeTenant ? {
           tenant: toMojoTenant(activeTenant),
           source: 'default',
@@ -315,7 +315,7 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
       tenants,
     };
 
-    // Set @mojo/tenant compatible context
+    // Set @gkeferstein/tenant compatible context
     request.tenantContext = activeTenant ? {
       tenant: toMojoTenant(activeTenant),
       source: clerkOrgId ? 'jwt_org_id' : 'default',
@@ -336,7 +336,7 @@ export function registerAuthPlugin(fastify: FastifyInstance): void {
 
 /**
  * Create headers for calling other MOJO services
- * Uses the standardized @mojo/tenant header format
+ * Uses the standardized @gkeferstein/tenant header format
  */
 export function createServiceHeaders(tenant: Tenant): Record<string, string> {
   return createTenantHeaders(toMojoTenant(tenant), 'accounts.mojo');
