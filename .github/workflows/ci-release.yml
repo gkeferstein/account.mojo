@@ -72,8 +72,36 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Determine npm token
+        id: npm-token
+        run: |
+          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
+            echo "token=${{ secrets.GHCR_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "✅ Using GHCR_TOKEN"
+          else
+            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "⚠️ GHCR_TOKEN not found, using GITHUB_TOKEN as fallback"
+          fi
+
+      - name: Configure npm for GitHub Packages
+        env:
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
+        run: |
+          echo "Configuring npm for GitHub Packages..."
+          rm -f ~/.npmrc
+          rm -f .npmrc
+          echo "@gkeferstein:registry=https://npm.pkg.github.com" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+          echo "always-auth=true" >> ~/.npmrc
+
       - name: Install Dependencies
-        run: npm ci
+        env:
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
+        run: |
+          if [ -f package-lock.json ]; then
+            rm -f package-lock.json
+          fi
+          npm install --legacy-peer-deps
 
       - name: Build Shared Package
         run: npm run build:shared
@@ -141,8 +169,36 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Determine npm token
+        id: npm-token
+        run: |
+          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
+            echo "token=${{ secrets.GHCR_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "✅ Using GHCR_TOKEN"
+          else
+            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "⚠️ GHCR_TOKEN not found, using GITHUB_TOKEN as fallback"
+          fi
+
+      - name: Configure npm for GitHub Packages
+        env:
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
+        run: |
+          echo "Configuring npm for GitHub Packages..."
+          rm -f ~/.npmrc
+          rm -f .npmrc
+          echo "@gkeferstein:registry=https://npm.pkg.github.com" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+          echo "always-auth=true" >> ~/.npmrc
+
       - name: Install Dependencies
-        run: npm ci
+        env:
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
+        run: |
+          if [ -f package-lock.json ]; then
+            rm -f package-lock.json
+          fi
+          npm install --legacy-peer-deps
 
       - name: Build Shared Package
         run: npm run build:shared
@@ -208,8 +264,36 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Determine npm token
+        id: npm-token
+        run: |
+          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
+            echo "token=${{ secrets.GHCR_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "✅ Using GHCR_TOKEN"
+          else
+            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "⚠️ GHCR_TOKEN not found, using GITHUB_TOKEN as fallback"
+          fi
+
+      - name: Configure npm for GitHub Packages
+        env:
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
+        run: |
+          echo "Configuring npm for GitHub Packages..."
+          rm -f ~/.npmrc
+          rm -f .npmrc
+          echo "@gkeferstein:registry=https://npm.pkg.github.com" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+          echo "always-auth=true" >> ~/.npmrc
+
       - name: Install Dependencies
-        run: npm ci
+        env:
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
+        run: |
+          if [ -f package-lock.json ]; then
+            rm -f package-lock.json
+          fi
+          npm install --legacy-peer-deps
 
       - name: npm Audit (Detailed)
         run: |
@@ -272,8 +356,36 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Determine npm token
+        id: npm-token
+        run: |
+          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
+            echo "token=${{ secrets.GHCR_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "✅ Using GHCR_TOKEN"
+          else
+            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "⚠️ GHCR_TOKEN not found, using GITHUB_TOKEN as fallback"
+          fi
+
+      - name: Configure npm for GitHub Packages
+        env:
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
+        run: |
+          echo "Configuring npm for GitHub Packages..."
+          rm -f ~/.npmrc
+          rm -f .npmrc
+          echo "@gkeferstein:registry=https://npm.pkg.github.com" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+          echo "always-auth=true" >> ~/.npmrc
+
       - name: Install Dependencies
-        run: npm ci
+        env:
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
+        run: |
+          if [ -f package-lock.json ]; then
+            rm -f package-lock.json
+          fi
+          npm install --legacy-peer-deps
 
       - name: Setup Test Database
         env:
