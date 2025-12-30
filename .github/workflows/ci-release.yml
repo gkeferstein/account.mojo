@@ -488,6 +488,13 @@ jobs:
             type=raw,value=${{ needs.prepare-release.outputs.version }}
             type=sha,prefix=,format=long
 
+      - name: Create .npmrc for Docker Build
+        run: |
+          echo "@gkeferstein:registry=https://npm.pkg.github.com" > .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GHCR_TOKEN }}" >> .npmrc
+          echo "always-auth=true" >> .npmrc
+          echo "Created .npmrc for Docker build"
+
       - name: Build and push API Docker image
         uses: docker/build-push-action@v5
         with:
