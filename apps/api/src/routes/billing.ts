@@ -5,6 +5,35 @@ import { logAuditEvent, AuditActions } from '../services/audit.js';
 import env from '../lib/env.js';
 import { isCacheStale, updateBillingCache, CACHE_TTL } from '../services/cache.service.js';
 
+// Validate returnUrl to prevent open redirect vulnerability
+function validateReturnUrl(url: string | undefined): string {
+  const defaultUrl = `${env.FRONTEND_URL}/membership`;
+
+  if (!url) {
+    return defaultUrl;
+  }
+
+  try {
+    const urlObj = new URL(url);
+
+    // Only allow same origin as frontend
+    const allowedOrigin = new URL(env.FRONTEND_URL).origin;
+    if (urlObj.origin !== allowedOrigin) {
+      return defaultUrl;
+    }
+
+    // Ensure it's using http/https (not javascript:, data:, etc.)
+    if (!['http:', 'https:'].includes(urlObj.protocol)) {
+      return defaultUrl;
+    }
+
+    return url;
+  } catch {
+    // Invalid URL, use default
+    return defaultUrl;
+  }
+}
+
 export async function billingRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /billing/subscription - Get current subscription
   fastify.get('/billing/subscription', async (request, reply) => {
@@ -137,7 +166,8 @@ export async function billingRoutes(fastify: FastifyInstance): Promise<void> {
       });
     }
 
-    const finalReturnUrl = returnUrl || `${env.FRONTEND_URL}/membership`;
+    // Validate returnUrl to prevent open redirect vulnerability
+    const finalReturnUrl = validateReturnUrl(returnUrl);
 
     const portalSession = await paymentsClient.createBillingPortalSession(
       auth.userId,

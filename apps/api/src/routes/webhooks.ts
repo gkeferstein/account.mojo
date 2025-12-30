@@ -31,7 +31,15 @@ function verifySignature(payload: string, signature: string, secret: string): bo
 async function verifyWebhookSignature(secret: string) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
     const signature = request.headers['x-webhook-signature'] as string;
-    const rawBody = JSON.stringify(request.body);
+    // Body is already a string due to content type parser
+    const rawBody = request.body as string;
+
+    if (!rawBody) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Missing request body',
+      });
+    }
 
     if (!verifySignature(rawBody, signature, secret)) {
       return reply.status(401).send({
@@ -39,16 +47,33 @@ async function verifyWebhookSignature(secret: string) {
         message: 'Invalid webhook signature',
       });
     }
+    
+    // Parse body and attach to request for handlers
+    try {
+      (request as any).body = JSON.parse(rawBody);
+    } catch (error) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Invalid JSON in request body',
+      });
+    }
   };
 }
 
 export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
+  // Add content type parser for raw body (needed for signature verification)
+  // This MUST be done before registering routes
+  fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+    done(null, body as string);
+  });
+
   // POST /webhooks/payments - Handle payment events
   fastify.post('/payments', {
     preHandler: async (request, reply) => {
       await verifyWebhookSignature(env.WEBHOOK_SECRET_PAYMENTS)(request, reply);
     },
   }, async (request, reply) => {
+    // Body is already parsed by verifyWebhookSignature middleware
     const payload = request.body as WebhookPayload;
     
     request.log.info('Payment webhook received', { event: payload.event });
@@ -216,6 +241,7 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
       await verifyWebhookSignature(env.WEBHOOK_SECRET_CRM)(request, reply);
     },
   }, async (request, reply) => {
+    // Body is already parsed by verifyWebhookSignature middleware
     const payload = request.body as WebhookPayload;
     
     request.log.info('CRM webhook received', { event: payload.event });

@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { timingSafeEqual } from 'crypto';
 import prisma from '../lib/prisma.js';
 import env from '../lib/env.js';
 
@@ -13,7 +14,18 @@ async function internalAuthMiddleware(request: FastifyRequest, reply: FastifyRep
     });
   }
 
-  if (token !== env.INTERNAL_API_SECRET) {
+  // Use timing-safe comparison to prevent timing attacks
+  const secretBuffer = Buffer.from(env.INTERNAL_API_SECRET, 'utf8');
+  const tokenBuffer = Buffer.from(token, 'utf8');
+
+  if (secretBuffer.length !== tokenBuffer.length) {
+    return reply.status(401).send({
+      error: 'Unauthorized',
+      message: 'Invalid internal API token',
+    });
+  }
+
+  if (!timingSafeEqual(secretBuffer, tokenBuffer)) {
     return reply.status(401).send({
       error: 'Unauthorized',
       message: 'Invalid internal API token',
