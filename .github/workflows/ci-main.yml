@@ -221,8 +221,8 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
+        if: ${{ secrets.GHCR_TOKEN }}
         uses: docker/login-action@v3
-        if: ${{ secrets.GHCR_TOKEN != '' }}
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -266,7 +266,7 @@ jobs:
         with:
           context: .
           file: ./apps/web/Dockerfile
-          push: ${{ secrets.GHCR_TOKEN != '' }}
+          push: ${{ secrets.GHCR_TOKEN && 'true' || 'false' }}
           tags: ${{ steps.meta-web.outputs.tags }}
           labels: ${{ steps.meta-web.outputs.labels }}
           build-args: |
