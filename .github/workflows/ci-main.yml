@@ -39,23 +39,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Determine npm token
-        id: npm-token
-        run: |
-          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
-            echo "token=${{ secrets.GHCR_TOKEN }}" >> $GITHUB_OUTPUT
-            echo "Using GHCR_TOKEN"
-          elif [ -n "${{ secrets.GITHUB_TOKEN }}" ]; then
-            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
-            echo "Using GITHUB_TOKEN as fallback"
-          else
-            echo "❌ No npm token available!"
-            exit 1
-          fi
-
       - name: Configure npm for GitHub Packages
-        env:
-          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
         run: |
           echo "Configuring npm for GitHub Packages..."
           # Remove any existing .npmrc files that might interfere
@@ -63,18 +47,16 @@ jobs:
           rm -f .npmrc
           # Create .npmrc in home directory
           echo "@gkeferstein:registry=https://npm.pkg.github.com" > ~/.npmrc
-          echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
           echo "always-auth=true" >> ~/.npmrc
           echo ""
           echo "Final .npmrc:"
-          cat ~/.npmrc
+          cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/'
           echo ""
           echo "Testing npm config..."
           npm config list
 
       - name: Install Dependencies
-        env:
-          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
         run: |
           npm install --legacy-peer-deps
 
@@ -143,23 +125,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Determine npm token
-        id: npm-token
-        run: |
-          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
-            echo "token=${{ secrets.GHCR_TOKEN }}" >> $GITHUB_OUTPUT
-            echo "Using GHCR_TOKEN"
-          elif [ -n "${{ secrets.GITHUB_TOKEN }}" ]; then
-            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
-            echo "Using GITHUB_TOKEN as fallback"
-          else
-            echo "❌ No npm token available!"
-            exit 1
-          fi
-
       - name: Configure npm for GitHub Packages
-        env:
-          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
         run: |
           echo "Configuring npm for GitHub Packages..."
           # Remove any existing .npmrc files that might interfere
@@ -167,18 +133,16 @@ jobs:
           rm -f .npmrc
           # Create .npmrc in home directory
           echo "@gkeferstein:registry=https://npm.pkg.github.com" > ~/.npmrc
-          echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
           echo "always-auth=true" >> ~/.npmrc
           echo ""
           echo "Final .npmrc:"
-          cat ~/.npmrc
+          cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/'
           echo ""
           echo "Testing npm config..."
           npm config list
 
       - name: Install Dependencies
-        env:
-          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
         run: |
           npm install --legacy-peer-deps
 
@@ -235,23 +199,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Determine npm token
-        id: npm-token
-        run: |
-          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
-            echo "token=${{ secrets.GHCR_TOKEN }}" >> $GITHUB_OUTPUT
-            echo "Using GHCR_TOKEN"
-          elif [ -n "${{ secrets.GITHUB_TOKEN }}" ]; then
-            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
-            echo "Using GITHUB_TOKEN as fallback"
-          else
-            echo "❌ No npm token available!"
-            exit 1
-          fi
-
       - name: Configure npm for GitHub Packages
-        env:
-          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
         run: |
           echo "Configuring npm for GitHub Packages..."
           # Remove any existing .npmrc files that might interfere
@@ -259,18 +207,16 @@ jobs:
           rm -f .npmrc
           # Create .npmrc in home directory
           echo "@gkeferstein:registry=https://npm.pkg.github.com" > ~/.npmrc
-          echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
           echo "always-auth=true" >> ~/.npmrc
           echo ""
           echo "Final .npmrc:"
-          cat ~/.npmrc
+          cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/'
           echo ""
           echo "Testing npm config..."
           npm config list
 
       - name: Install Dependencies
-        env:
-          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
         run: |
           npm install --legacy-peer-deps
 
