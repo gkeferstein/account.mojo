@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma.js';
 import { logAuditEvent, AuditActions } from '../services/audit.js';
 import { createDataRequestSchema } from '@accounts/shared';
+import { processDataExport, processAccountDeletion } from '../services/data-export.service.js';
 
 export async function dataRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /data/requests - List data requests
@@ -88,7 +89,10 @@ export async function dataRoutes(fastify: FastifyInstance): Promise<void> {
       resourceId: dataRequest.id,
     });
 
-    // TODO: Queue job to process export
+    // Process export asynchronously (in production, use a job queue)
+    processDataExport(dataRequest.id, auth.userId, auth.clerkUserId).catch((error) => {
+      console.error('Failed to process data export:', error);
+    });
 
     return reply.status(201).send({
       id: dataRequest.id,
@@ -155,7 +159,11 @@ export async function dataRoutes(fastify: FastifyInstance): Promise<void> {
       metadata: { reason: input.reason },
     });
 
-    // TODO: Queue job to process deletion (with delay for review)
+    // Process deletion asynchronously (in production, use a job queue with delay)
+    // For now, process immediately - in production, add a 30-day delay
+    processAccountDeletion(dataRequest.id, auth.userId, auth.clerkUserId, input.reason).catch((error) => {
+      console.error('Failed to process account deletion:', error);
+    });
 
     return reply.status(201).send({
       id: dataRequest.id,
@@ -210,6 +218,7 @@ export async function dataRoutes(fastify: FastifyInstance): Promise<void> {
 }
 
 export default dataRoutes;
+
 
 
 

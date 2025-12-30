@@ -2,19 +2,12 @@
 
 /**
  * Header Component
- * Uses MOJO Design System navigation components for the topbar
- * Modeled after payments.mojo implementation
+ * Verwendet die einheitliche MojoTopbar-Komponente aus @mojo/design
  * 
  * Uses Clerk Organizations for tenant management
  */
 
-import {
-  MojoAppSwitcher,
-  MojoUserMenu,
-  TenantSwitcher,
-  MojoLogo,
-  MOJO_APPS,
-} from '@mojo/design';
+import { MojoTopbar, MojoTopbarSkeleton } from '@mojo/design';
 import { useClerk, useOrganizationList, useOrganization, useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import type { Tenant, MojoUser } from '@mojo/design';
@@ -133,51 +126,21 @@ export function Header() {
   }, [clerkUser]);
 
   // Show loading state
-  if (!userLoaded || !membershipsLoaded) {
-    return (
-      <div className="flex w-full items-center justify-center px-4">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
-  }
+  const isLoading = !userLoaded || !membershipsLoaded;
 
-  // If no user, show minimal header with just the logo
-  if (!clerkUser || !mojoUser || !currentTenant) {
-    return (
-      <div className="flex w-full items-center justify-center px-4">
-        <MojoLogo size="sm" mode="dark" />
-      </div>
-    );
-  }
-
-  // accounts.mojo shows all available apps
-  const visibleApps = MOJO_APPS;
+  // accounts.mojo shows all available apps (no entitlements filtering)
+  const entitlements: string[] = [];
 
   return (
-    <div className="flex w-full items-center gap-2 px-4">
-      {/* Left: App Switcher */}
-      <MojoAppSwitcher
-        apps={visibleApps}
-        currentApp="account"
-      />
-
-      {/* Center: Spacer */}
-      <div className="flex-1" />
-
-      {/* Right: Tenant Switcher + User Menu */}
-      <div className="flex items-center gap-1">
-        <TenantSwitcher
-          currentTenant={currentTenant}
-          tenants={tenants}
-          onTenantChange={handleTenantChange}
-          variant="compact"
-        />
-        <MojoUserMenu
-          user={mojoUser}
-          tenant={currentTenant}
-          onLogout={handleLogout}
-        />
-      </div>
-    </div>
+    <MojoTopbar
+      currentApp="account"
+      user={mojoUser}
+      tenant={currentTenant}
+      tenants={tenants}
+      entitlements={entitlements}
+      onTenantChange={handleTenantChange}
+      onLogout={handleLogout}
+      isLoading={isLoading}
+    />
   );
 }
