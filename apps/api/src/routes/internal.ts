@@ -62,9 +62,11 @@ export async function internalRoutes(fastify: FastifyInstance): Promise<void> {
     });
 
     if (!user) {
+      // Don't expose clerkUserId in error message (security: information disclosure)
+      request.log.warn('User not found in internal API', { clerkUserId });
       return reply.status(404).send({
         error: 'Not Found',
-        message: `User not found: ${clerkUserId}`,
+        message: 'User not found',
       });
     }
 
@@ -80,9 +82,11 @@ export async function internalRoutes(fastify: FastifyInstance): Promise<void> {
     });
 
     if (!user) {
+      // Don't expose clerkUserId in error message (security: information disclosure)
+      request.log.warn('User not found in internal API', { clerkUserId });
       return reply.status(404).send({
         error: 'Not Found',
-        message: `User not found: ${clerkUserId}`,
+        message: 'User not found',
       });
     }
 
