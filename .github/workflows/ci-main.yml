@@ -24,7 +24,7 @@ jobs:
   code-quality:
     name: Code Quality Checks
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 1
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,6 +36,8 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm ci
 
       - name: Build Shared Package
@@ -92,7 +94,7 @@ jobs:
   tests:
     name: Unit Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 1
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -104,6 +106,8 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm ci
 
       - name: Build Shared Package
@@ -134,7 +138,7 @@ jobs:
   database-checks:
     name: Database Migration & Schema Checks
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 1
     services:
       postgres:
         image: postgres:16-alpine
@@ -160,6 +164,8 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm ci
 
       - name: Setup Test Database
@@ -206,7 +212,7 @@ jobs:
   build-images:
     name: Build & Push Docker Images
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 1
     needs: [code-quality, tests]
     if: always()
     permissions:
@@ -300,7 +306,7 @@ jobs:
   deploy-dev:
     name: Deploy to Development
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 1
     needs: [build-images]
     if: needs.build-images.result == 'success' && github.ref == 'refs/heads/main'
     environment:
