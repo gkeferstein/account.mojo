@@ -75,13 +75,17 @@ jobs:
         run: |
           echo "Installing dependencies..."
           echo "NPM_TOKEN is set: $([ -n \"$NPM_TOKEN\" ] && echo 'yes' || echo 'no')"
-          npm ci --legacy-peer-deps 2>&1 | head -100 || {
-            echo "❌ npm ci failed"
-            echo "Checking npm config..."
-            npm config list
-            echo "Checking .npmrc..."
-            cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/' || echo "No ~/.npmrc found"
-            exit 1
+          # Try npm ci first, fallback to npm install if it fails
+          npm ci --legacy-peer-deps 2>&1 || {
+            echo "⚠️ npm ci failed, trying npm install..."
+            npm install --legacy-peer-deps 2>&1 || {
+              echo "❌ npm install also failed"
+              echo "Checking npm config..."
+              npm config list
+              echo "Checking .npmrc..."
+              cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/' || echo "No ~/.npmrc found"
+              exit 1
+            }
           }
 
       - name: Build Shared Package
@@ -185,13 +189,17 @@ jobs:
         run: |
           echo "Installing dependencies..."
           echo "NPM_TOKEN is set: $([ -n \"$NPM_TOKEN\" ] && echo 'yes' || echo 'no')"
-          npm ci --legacy-peer-deps 2>&1 | head -100 || {
-            echo "❌ npm ci failed"
-            echo "Checking npm config..."
-            npm config list
-            echo "Checking .npmrc..."
-            cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/' || echo "No ~/.npmrc found"
-            exit 1
+          # Try npm ci first, fallback to npm install if it fails
+          npm ci --legacy-peer-deps 2>&1 || {
+            echo "⚠️ npm ci failed, trying npm install..."
+            npm install --legacy-peer-deps 2>&1 || {
+              echo "❌ npm install also failed"
+              echo "Checking npm config..."
+              npm config list
+              echo "Checking .npmrc..."
+              cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/' || echo "No ~/.npmrc found"
+              exit 1
+            }
           }
 
       - name: Build Shared Package
@@ -283,13 +291,17 @@ jobs:
         run: |
           echo "Installing dependencies..."
           echo "NPM_TOKEN is set: $([ -n \"$NPM_TOKEN\" ] && echo 'yes' || echo 'no')"
-          npm ci --legacy-peer-deps 2>&1 | head -100 || {
-            echo "❌ npm ci failed"
-            echo "Checking npm config..."
-            npm config list
-            echo "Checking .npmrc..."
-            cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/' || echo "No ~/.npmrc found"
-            exit 1
+          # Try npm ci first, fallback to npm install if it fails
+          npm ci --legacy-peer-deps 2>&1 || {
+            echo "⚠️ npm ci failed, trying npm install..."
+            npm install --legacy-peer-deps 2>&1 || {
+              echo "❌ npm install also failed"
+              echo "Checking npm config..."
+              npm config list
+              echo "Checking .npmrc..."
+              cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/' || echo "No ~/.npmrc found"
+              exit 1
+            }
           }
 
       - name: Setup Test Database
