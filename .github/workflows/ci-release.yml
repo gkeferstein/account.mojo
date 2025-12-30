@@ -489,15 +489,15 @@ jobs:
             type=sha,prefix=,format=long
 
       - name: Create .npmrc for Docker Build
-        if: steps.check-ghcr.outputs.token_exists == 'true'
+        if: steps.docker-token.outputs.token_exists == 'true'
         run: |
           echo "@gkeferstein:registry=https://npm.pkg.github.com" > .npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GHCR_TOKEN }}" >> .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ steps.docker-token.outputs.token }}" >> .npmrc
           echo "always-auth=true" >> .npmrc
           echo "Created .npmrc for Docker build"
 
       - name: Build and push API Docker image
-        if: steps.check-ghcr.outputs.token_exists == 'true'
+        if: steps.docker-token.outputs.token_exists == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -537,15 +537,15 @@ jobs:
             type=sha,prefix=,format=long
 
       - name: Create .npmrc for Web Docker Build
-        if: steps.check-ghcr.outputs.token_exists == 'true'
+        if: steps.docker-token.outputs.token_exists == 'true'
         run: |
           echo "@gkeferstein:registry=https://npm.pkg.github.com" > ./apps/web/.npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GHCR_TOKEN }}" >> ./apps/web/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ steps.docker-token.outputs.token }}" >> ./apps/web/.npmrc
           echo "always-auth=true" >> ./apps/web/.npmrc
           echo "Created .npmrc for Web Docker build"
 
       - name: Build and push Web Docker image
-        if: steps.check-ghcr.outputs.token_exists == 'true'
+        if: steps.docker-token.outputs.token_exists == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
