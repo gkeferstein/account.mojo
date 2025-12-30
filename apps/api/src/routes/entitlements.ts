@@ -30,24 +30,46 @@ export async function entitlementsRoutes(fastify: FastifyInstance): Promise<void
     const cacheStale = cacheAge > 5 * 60 * 1000;
 
     if (!entitlementCache || cacheStale) {
-      const entitlements = await paymentsClient.getEntitlements(auth.userId, auth.activeTenant.id);
+      // Fetch from payments.mojo with fallback to stale cache
+      try {
+        const entitlements = await paymentsClient.getEntitlements(auth.userId, auth.activeTenant.id);
 
-      entitlementCache = await prisma.entitlementCache.upsert({
-        where: {
-          tenantId_userId: {
+        entitlementCache = await prisma.entitlementCache.upsert({
+          where: {
+            tenantId_userId: {
+              tenantId: auth.activeTenant.id,
+              userId: auth.userId,
+            },
+          },
+          create: {
             tenantId: auth.activeTenant.id,
             userId: auth.userId,
+            entitlements,
           },
-        },
-        create: {
-          tenantId: auth.activeTenant.id,
+          update: {
+            entitlements,
+          },
+        });
+      } catch (error) {
+        // Fallback: Use stale cache if available
+        request.log.warn({
+          err: error,
+          message: 'Failed to refresh entitlements from payments.mojo, using cache if available',
           userId: auth.userId,
-          entitlements,
-        },
-        update: {
-          entitlements,
-        },
-      });
+          hasStaleCache: !!entitlementCache,
+        });
+        
+        // If no cache available, entitlements will be empty array
+        if (!entitlementCache) {
+          entitlementCache = await prisma.entitlementCache.create({
+            data: {
+              tenantId: auth.activeTenant.id,
+              userId: auth.userId,
+              entitlements: [],
+            },
+          });
+        }
+      }
     }
 
     const entitlements = (entitlementCache.entitlements as Entitlement[]) || [];
@@ -113,24 +135,42 @@ export async function entitlementsRoutes(fastify: FastifyInstance): Promise<void
     });
 
     if (!entitlementCache) {
-      const entitlements = await paymentsClient.getEntitlements(auth.userId, auth.activeTenant.id);
+      // Try to fetch, but fallback gracefully if it fails
+      try {
+        const entitlements = await paymentsClient.getEntitlements(auth.userId, auth.activeTenant.id);
 
-      entitlementCache = await prisma.entitlementCache.upsert({
-        where: {
-          tenantId_userId: {
+        entitlementCache = await prisma.entitlementCache.upsert({
+          where: {
+            tenantId_userId: {
+              tenantId: auth.activeTenant.id,
+              userId: auth.userId,
+            },
+          },
+          create: {
             tenantId: auth.activeTenant.id,
             userId: auth.userId,
+            entitlements,
           },
-        },
-        create: {
-          tenantId: auth.activeTenant.id,
+          update: {
+            entitlements,
+          },
+        });
+      } catch (error) {
+        request.log.warn({
+          err: error,
+          message: 'Failed to fetch entitlements from payments.mojo',
           userId: auth.userId,
-          entitlements,
-        },
-        update: {
-          entitlements,
-        },
-      });
+        });
+        
+        // Create empty cache entry
+        entitlementCache = await prisma.entitlementCache.create({
+          data: {
+            tenantId: auth.activeTenant.id,
+            userId: auth.userId,
+            entitlements: [],
+          },
+        });
+      }
     }
 
     const entitlements = (entitlementCache.entitlements as Entitlement[]) || [];

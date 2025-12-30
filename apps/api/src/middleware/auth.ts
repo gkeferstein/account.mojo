@@ -9,6 +9,7 @@ import { FastifyRequest, FastifyReply, FastifyInstance } from 'fastify';
 import { createClerkClient, verifyToken } from '@clerk/backend';
 import prisma from '../lib/prisma.js';
 import env from '../lib/env.js';
+import { TENANT_HEADERS } from '../lib/constants.js';
 import type { User, Tenant, TenantMembership, TenantRole } from '@prisma/client';
 
 // Local tenant types (accounts.mojo is the SSOT, so we define them here)
@@ -28,12 +29,6 @@ interface TenantContext {
   source: 'header' | 'jwt_org_id' | 'default';
   rawIdentifier?: string;
 }
-
-const TENANT_HEADERS = {
-  TENANT_ID: 'x-tenant-id',
-  TENANT_SLUG: 'x-tenant-slug',
-  SERVICE_NAME: 'x-service-name',
-} as const;
 
 function createTenantHeaders(tenant: MojoTenant, serviceName: string): Record<string, string> {
   return {
