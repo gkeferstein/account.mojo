@@ -45,9 +45,33 @@ export const env = {
 export function validateEnv(): void {
   const required: (keyof typeof env)[] = ['DATABASE_URL'];
   
-  // In production, require Clerk keys
+  // In production, require Clerk keys and validate configuration
   if (env.NODE_ENV === 'production') {
     required.push('CLERK_SECRET_KEY', 'CLERK_PUBLISHABLE_KEY');
+    
+    // Warn if mock mode is enabled in production
+    if (env.MOCK_EXTERNAL_SERVICES) {
+      throw new Error('MOCK_EXTERNAL_SERVICES must be false in production');
+    }
+    
+    // Warn if dev defaults are used
+    if (env.WEBHOOK_SECRET_PAYMENTS === 'dev-webhook-secret-payments') {
+      throw new Error('WEBHOOK_SECRET_PAYMENTS must not use dev default in production');
+    }
+    if (env.WEBHOOK_SECRET_CRM === 'dev-webhook-secret-crm') {
+      throw new Error('WEBHOOK_SECRET_CRM must not use dev default in production');
+    }
+    if (env.INTERNAL_API_SECRET === 'dev-internal-api-secret') {
+      throw new Error('INTERNAL_API_SECRET must not use dev default in production');
+    }
+    
+    // Warn if test keys are used
+    if (env.CLERK_SECRET_KEY.startsWith('sk_test_')) {
+      throw new Error('CLERK_SECRET_KEY must be a LIVE key (sk_live_...) in production');
+    }
+    if (env.CLERK_PUBLISHABLE_KEY.startsWith('pk_test_')) {
+      throw new Error('CLERK_PUBLISHABLE_KEY must be a LIVE key (pk_live_...) in production');
+    }
   }
   
   const missing = required.filter((key) => !env[key]);
