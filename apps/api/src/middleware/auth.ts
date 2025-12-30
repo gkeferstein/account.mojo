@@ -222,6 +222,11 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
 
     // In development without Clerk, allow mock auth
     if (!env.CLERK_SECRET_KEY && env.NODE_ENV === 'development') {
+      appLogger.warn('Using mock authentication - Clerk not configured', {
+        context: 'auth-middleware',
+        nodeEnv: env.NODE_ENV,
+      });
+      
       const mockUser = await prisma.user.findFirst({
         where: { email: 'demo@mojo-institut.de' },
       });

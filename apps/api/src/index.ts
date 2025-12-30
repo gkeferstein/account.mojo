@@ -39,9 +39,15 @@ const fastify = Fastify({
 
 // Register plugins
 async function registerPlugins(): Promise<void> {
-  // CORS
+  // CORS - environment-based configuration
+  const corsOrigins = [env.FRONTEND_URL];
+  // Only allow localhost in development
+  if (env.NODE_ENV === 'development') {
+    corsOrigins.push('http://localhost:3000');
+  }
+  
   await fastify.register(cors, {
-    origin: [env.FRONTEND_URL, 'http://localhost:3000'],
+    origin: corsOrigins,
     credentials: true,
   });
 
