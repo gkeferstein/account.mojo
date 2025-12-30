@@ -39,9 +39,20 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Determine npm token
+        id: npm-token
+        run: |
+          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
+            echo "token=${{ secrets.GHCR_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "✅ Using GHCR_TOKEN"
+          else
+            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "⚠️ GHCR_TOKEN not found, using GITHUB_TOKEN as fallback"
+          fi
+
       - name: Configure npm for GitHub Packages
         env:
-          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
         run: |
           echo "Configuring npm for GitHub Packages..."
           # Remove any existing .npmrc files that might interfere
@@ -53,14 +64,14 @@ jobs:
           echo "always-auth=true" >> ~/.npmrc
           echo ""
           echo "Final .npmrc:"
-          cat ~/.npmrc
+          cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/'
           echo ""
           echo "Testing npm config..."
           npm config list
 
       - name: Install Dependencies
         env:
-          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
         run: |
           echo "Installing dependencies..."
           echo "NPM_TOKEN is set: $([ -n \"$NPM_TOKEN\" ] && echo 'yes' || echo 'no')"
@@ -69,7 +80,7 @@ jobs:
             echo "Checking npm config..."
             npm config list
             echo "Checking .npmrc..."
-            cat ~/.npmrc || echo "No ~/.npmrc found"
+            cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/' || echo "No ~/.npmrc found"
             exit 1
           }
 
@@ -138,9 +149,20 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Determine npm token
+        id: npm-token
+        run: |
+          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
+            echo "token=${{ secrets.GHCR_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "✅ Using GHCR_TOKEN"
+          else
+            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "⚠️ GHCR_TOKEN not found, using GITHUB_TOKEN as fallback"
+          fi
+
       - name: Configure npm for GitHub Packages
         env:
-          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
         run: |
           echo "Configuring npm for GitHub Packages..."
           # Remove any existing .npmrc files that might interfere
@@ -152,14 +174,14 @@ jobs:
           echo "always-auth=true" >> ~/.npmrc
           echo ""
           echo "Final .npmrc:"
-          cat ~/.npmrc
+          cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/'
           echo ""
           echo "Testing npm config..."
           npm config list
 
       - name: Install Dependencies
         env:
-          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
         run: |
           echo "Installing dependencies..."
           echo "NPM_TOKEN is set: $([ -n \"$NPM_TOKEN\" ] && echo 'yes' || echo 'no')"
@@ -168,7 +190,7 @@ jobs:
             echo "Checking npm config..."
             npm config list
             echo "Checking .npmrc..."
-            cat ~/.npmrc || echo "No ~/.npmrc found"
+            cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/' || echo "No ~/.npmrc found"
             exit 1
           }
 
@@ -225,9 +247,20 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Determine npm token
+        id: npm-token
+        run: |
+          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
+            echo "token=${{ secrets.GHCR_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "✅ Using GHCR_TOKEN"
+          else
+            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "⚠️ GHCR_TOKEN not found, using GITHUB_TOKEN as fallback"
+          fi
+
       - name: Configure npm for GitHub Packages
         env:
-          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
         run: |
           echo "Configuring npm for GitHub Packages..."
           # Remove any existing .npmrc files that might interfere
@@ -239,14 +272,14 @@ jobs:
           echo "always-auth=true" >> ~/.npmrc
           echo ""
           echo "Final .npmrc:"
-          cat ~/.npmrc
+          cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/'
           echo ""
           echo "Testing npm config..."
           npm config list
 
       - name: Install Dependencies
         env:
-          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
         run: |
           echo "Installing dependencies..."
           echo "NPM_TOKEN is set: $([ -n \"$NPM_TOKEN\" ] && echo 'yes' || echo 'no')"
@@ -255,7 +288,7 @@ jobs:
             echo "Checking npm config..."
             npm config list
             echo "Checking .npmrc..."
-            cat ~/.npmrc || echo "No ~/.npmrc found"
+            cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/' || echo "No ~/.npmrc found"
             exit 1
           }
 
