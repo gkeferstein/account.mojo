@@ -41,7 +41,7 @@ jobs:
 
       - name: Configure npm for GitHub Packages
         env:
-          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          NPM_TOKEN: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "Configuring npm for GitHub Packages..."
           # Remove any existing .npmrc files that might interfere
@@ -60,7 +60,7 @@ jobs:
 
       - name: Install Dependencies
         env:
-          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          NPM_TOKEN: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           npm install --legacy-peer-deps
 
@@ -131,7 +131,7 @@ jobs:
 
       - name: Configure npm for GitHub Packages
         env:
-          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          NPM_TOKEN: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "Configuring npm for GitHub Packages..."
           # Remove any existing .npmrc files that might interfere
@@ -150,7 +150,7 @@ jobs:
 
       - name: Install Dependencies
         env:
-          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          NPM_TOKEN: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           npm install --legacy-peer-deps
 
@@ -209,7 +209,7 @@ jobs:
 
       - name: Configure npm for GitHub Packages
         env:
-          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          NPM_TOKEN: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "Configuring npm for GitHub Packages..."
           # Remove any existing .npmrc files that might interfere
@@ -228,7 +228,7 @@ jobs:
 
       - name: Install Dependencies
         env:
-          NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          NPM_TOKEN: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           npm install --legacy-peer-deps
 
