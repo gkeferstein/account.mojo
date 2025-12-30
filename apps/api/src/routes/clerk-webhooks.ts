@@ -4,6 +4,7 @@ import { createClerkClient } from '@clerk/backend';
 import prisma from '../lib/prisma.js';
 import env from '../lib/env.js';
 import { crmClient } from '../clients/crm.js';
+import { appLogger } from '../lib/logger.js';
 
 // Clerk Webhook Event Types
 interface ClerkWebhookEvent {
@@ -83,7 +84,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
     const webhookSecret = env.CLERK_WEBHOOK_SECRET;
 
     if (!webhookSecret) {
-      console.error('❌ CLERK_WEBHOOK_SECRET not configured');
+      request.log.error('CLERK_WEBHOOK_SECRET not configured');
       return reply.status(500).send({ error: 'Webhook secret not configured' });
     }
 
@@ -93,14 +94,18 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
     const svixSignature = request.headers['svix-signature'] as string;
 
     if (!svixId || !svixTimestamp || !svixSignature) {
-      console.error('❌ Missing Svix headers');
+      request.log.error('Missing Svix headers', {
+        hasSvixId: !!svixId,
+        hasSvixTimestamp: !!svixTimestamp,
+        hasSvixSignature: !!svixSignature,
+      });
       return reply.status(400).send({ error: 'Missing webhook headers' });
     }
 
     // Body is raw string because of our content type parser
     const rawBody = request.body as string;
     if (!rawBody) {
-      console.error('❌ Missing raw body');
+      request.log.error('Missing raw body in webhook request');
       return reply.status(400).send({ error: 'Missing request body' });
     }
 
@@ -114,7 +119,9 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
         'svix-signature': svixSignature,
       }) as ClerkWebhookEvent;
     } catch (err) {
-      console.error('❌ Webhook signature verification failed:', err);
+      request.log.error('Webhook signature verification failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
       return reply.status(401).send({ error: 'Invalid webhook signature' });
     }
 
@@ -124,7 +131,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
     });
 
     if (existingEvent) {
-      console.log(`⚠️ Duplicate webhook event: ${svixId}, skipping`);
+      request.log.warn('Duplicate webhook event, skipping', { svixId, eventType: existingEvent.eventType });
       return reply.send({ received: true, processed: false, reason: 'Duplicate event' });
     }
 
@@ -140,7 +147,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
       },
     });
 
-    console.log(`📥 Clerk webhook received: ${event.type} (${svixId})`);
+    request.log.info('Clerk webhook received', { eventType: event.type, svixId });
 
     try {
       // Process event based on type
@@ -173,7 +180,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
             },
           });
 
-          console.log(`✅ User created/updated: ${user.id} (${primaryEmail})`);
+          request.log.info('User created/updated via webhook', { userId: user.id, email: primaryEmail });
 
           // Create customer in kontakte.mojo (SSOT)
           // This may upgrade an existing lead or create a new customer
@@ -187,16 +194,19 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
 
             if (crmResult) {
               if (crmResult.upgraded) {
-                console.log(`✅ Lead upgraded to customer in CRM: ${crmResult.accountId}`);
+                request.log.info('Lead upgraded to customer in CRM', { accountId: crmResult.accountId });
               } else if (crmResult.created) {
-                console.log(`✅ Customer created in CRM: ${crmResult.accountId}`);
+                request.log.info('Customer created in CRM', { accountId: crmResult.accountId });
               } else if (crmResult.existing) {
-                console.log(`ℹ️ Customer already exists in CRM: ${crmResult.accountId}`);
+                request.log.info('Customer already exists in CRM', { accountId: crmResult.accountId });
               }
             }
           } catch (crmError) {
             // Log error but don't fail the webhook - CRM sync can be retried
-            console.error('⚠️ Failed to sync customer to CRM:', crmError);
+            request.log.warn('Failed to sync customer to CRM', {
+              error: crmError instanceof Error ? crmError.message : String(crmError),
+              clerkUserId: userData.id,
+            });
           }
 
           // Auto-provision Personal Organization
@@ -230,7 +240,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
             },
           });
 
-          console.log(`✅ User updated: ${userData.id}`);
+          request.log.info('User updated via webhook', { clerkUserId: userData.id });
           break;
         }
 
@@ -243,7 +253,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
             data: { deletedAt: new Date() },
           });
 
-          console.log(`✅ User soft-deleted: ${userData.id}`);
+          request.log.info('User soft-deleted via webhook', { clerkUserId: userData.id });
           break;
         }
 
@@ -271,7 +281,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
             },
           });
 
-          console.log(`✅ Organization created: ${orgData.id} (${orgData.name})`);
+          request.log.info('Organization created via webhook', { clerkOrgId: orgData.id, name: orgData.name });
           break;
         }
 
@@ -296,7 +306,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
             },
           });
 
-          console.log(`✅ Organization updated: ${orgData.id}`);
+          request.log.info('Organization updated via webhook', { clerkOrgId: orgData.id });
           break;
         }
 
@@ -309,7 +319,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
             data: { deletedAt: new Date() },
           });
 
-          console.log(`✅ Organization soft-deleted: ${orgData.id}`);
+          request.log.info('Organization soft-deleted via webhook', { clerkOrgId: orgData.id });
           break;
         }
 
@@ -341,7 +351,10 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
                   },
                 });
               } catch (err) {
-                console.error('Failed to fetch org from Clerk:', err);
+                request.log.error('Failed to fetch org from Clerk', {
+                  error: err instanceof Error ? err.message : String(err),
+                  clerkOrgId,
+                });
                 throw new Error(`Tenant not found for org ${clerkOrgId}`);
               }
             } else {
@@ -369,7 +382,10 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
                   },
                 });
               } catch (err) {
-                console.error('Failed to fetch user from Clerk:', err);
+                request.log.error('Failed to fetch user from Clerk', {
+                  error: err instanceof Error ? err.message : String(err),
+                  clerkUserId,
+                });
                 throw new Error(`User not found for ${clerkUserId}`);
               }
             } else {
@@ -407,7 +423,11 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
             });
           }
 
-          console.log(`✅ Membership created: ${clerkUserId} -> ${clerkOrgId} (${memberData.role})`);
+          request.log.info('Membership created via webhook', {
+            clerkUserId,
+            clerkOrgId,
+            role: memberData.role,
+          });
           break;
         }
 
@@ -425,9 +445,12 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
                 role: mapClerkRoleToTenantRole(memberData.role),
               },
             });
-            console.log(`✅ Membership updated: ${memberData.id} (${memberData.role})`);
+            request.log.info('Membership updated via webhook', {
+              clerkMembershipId: memberData.id,
+              role: memberData.role,
+            });
           } else {
-            console.warn(`⚠️ Membership not found: ${memberData.id}`);
+            request.log.warn('Membership not found for update', { clerkMembershipId: memberData.id });
           }
           break;
         }
@@ -444,13 +467,13 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
               where: { id: membership.id },
               data: { status: 'removed' },
             });
-            console.log(`✅ Membership removed: ${memberData.id}`);
+            request.log.info('Membership removed via webhook', { clerkMembershipId: memberData.id });
           }
           break;
         }
 
         default:
-          console.log(`⚠️ Unhandled Clerk event type: ${event.type}`);
+          request.log.warn('Unhandled Clerk event type', { eventType: event.type, svixId });
       }
 
       // Mark webhook as successful
@@ -464,7 +487,12 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
 
       return reply.send({ received: true, processed: true });
     } catch (error) {
-      console.error(`❌ Error processing webhook ${event.type}:`, error);
+      request.log.error('Error processing webhook', {
+        eventType: event.type,
+        svixId,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
 
       // Mark webhook as failed
       await prisma.webhookEvent.update({
@@ -508,7 +536,7 @@ async function provisionPersonalOrg(
   email: string
 ): Promise<void> {
   if (!clerkClient) {
-    console.warn('⚠️ Clerk client not configured, skipping personal org provisioning');
+    appLogger.warn('Clerk client not configured, skipping personal org provisioning', { clerkUserId });
     return;
   }
 
@@ -519,7 +547,10 @@ async function provisionPersonalOrg(
     });
 
     if (existingMemberships.data.length > 0) {
-      console.log(`ℹ️ User ${clerkUserId} already has ${existingMemberships.data.length} org(s), skipping personal org`);
+      appLogger.info('User already has organizations, skipping personal org', {
+        clerkUserId,
+        orgCount: existingMemberships.data.length,
+      });
       return;
     }
 
@@ -533,7 +564,11 @@ async function provisionPersonalOrg(
       createdBy: clerkUserId,
     });
 
-    console.log(`✅ Personal org created in Clerk: ${org.id} (${personalOrgSlug})`);
+    appLogger.info('Personal org created in Clerk', {
+      clerkOrgId: org.id,
+      clerkUserId,
+      slug: personalOrgSlug,
+    });
 
     // Create tenant in our database
     const tenant = await prisma.tenant.create({
@@ -564,9 +599,17 @@ async function provisionPersonalOrg(
       },
     });
 
-    console.log(`✅ Personal tenant created: ${tenant.id} for user ${internalUserId}`);
+    appLogger.info('Personal tenant created', {
+      tenantId: tenant.id,
+      userId: internalUserId,
+      clerkUserId,
+    });
   } catch (error) {
-    console.error('❌ Failed to provision personal org:', error);
+    appLogger.error('Failed to provision personal org', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      clerkUserId,
+    });
     // Don't throw - personal org provisioning failure shouldn't block user creation
   }
 }

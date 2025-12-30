@@ -3,6 +3,7 @@ import prisma from '../lib/prisma.js';
 import crmClient from '../clients/crm.js';
 import { logAuditEvent, AuditActions } from '../services/audit.js';
 import { profileUpdateSchema } from '@accounts/shared';
+import { isCacheStale, updateProfileCache, CACHE_TTL } from '../services/cache.service.js';
 
 export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /profile - Get user profile (aggregated from CRM/SSOT + local cache)
@@ -27,32 +28,18 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
     });
 
     // If cache is stale (older than 5 minutes), refresh from CRM (SSOT)
-    const cacheAge = profileCache ? Date.now() - profileCache.updatedAt.getTime() : Infinity;
-    const cacheStale = cacheAge > 5 * 60 * 1000;
-
-    if (!profileCache || cacheStale) {
+    if (!profileCache || isCacheStale(profileCache, CACHE_TTL.PROFILE)) {
       // Fetch from kontakte.mojo (SSOT) using clerkUserId
       // Use fallback: if fetch fails, use stale cache if available
       try {
         const crmProfile = await crmClient.getProfile(auth.clerkUserId);
 
         if (crmProfile) {
-          profileCache = await prisma.profileCache.upsert({
-            where: {
-              tenantId_userId: {
-                tenantId: auth.activeTenant.id,
-                userId: auth.userId,
-              },
-            },
-            create: {
-              tenantId: auth.activeTenant.id,
-              userId: auth.userId,
-              payload: crmProfile,
-            },
-            update: {
-              payload: crmProfile,
-            },
-          });
+          profileCache = await updateProfileCache(
+            auth.activeTenant.id,
+            auth.userId,
+            crmProfile
+          );
         }
       } catch (error) {
         // Fallback: Use stale cache if available, otherwise continue with default

@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma.js';
 import paymentsClient from '../clients/payments.js';
 import type { Entitlement, AppEntitlementsResponse } from '@accounts/shared';
+import { isCacheStale, updateEntitlementCache, CACHE_TTL } from '../services/cache.service.js';
 
 export async function entitlementsRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /entitlements - Get user entitlements
@@ -26,30 +27,16 @@ export async function entitlementsRoutes(fastify: FastifyInstance): Promise<void
     });
 
     // Refresh if cache is stale (older than 5 minutes)
-    const cacheAge = entitlementCache ? Date.now() - entitlementCache.updatedAt.getTime() : Infinity;
-    const cacheStale = cacheAge > 5 * 60 * 1000;
-
-    if (!entitlementCache || cacheStale) {
+    if (!entitlementCache || isCacheStale(entitlementCache, CACHE_TTL.ENTITLEMENTS)) {
       // Fetch from payments.mojo with fallback to stale cache
       try {
         const entitlements = await paymentsClient.getEntitlements(auth.userId, auth.activeTenant.id);
 
-        entitlementCache = await prisma.entitlementCache.upsert({
-          where: {
-            tenantId_userId: {
-              tenantId: auth.activeTenant.id,
-              userId: auth.userId,
-            },
-          },
-          create: {
-            tenantId: auth.activeTenant.id,
-            userId: auth.userId,
-            entitlements,
-          },
-          update: {
-            entitlements,
-          },
-        });
+        entitlementCache = await updateEntitlementCache(
+          auth.activeTenant.id,
+          auth.userId,
+          entitlements
+        );
       } catch (error) {
         // Fallback: Use stale cache if available
         request.log.warn({
@@ -139,22 +126,11 @@ export async function entitlementsRoutes(fastify: FastifyInstance): Promise<void
       try {
         const entitlements = await paymentsClient.getEntitlements(auth.userId, auth.activeTenant.id);
 
-        entitlementCache = await prisma.entitlementCache.upsert({
-          where: {
-            tenantId_userId: {
-              tenantId: auth.activeTenant.id,
-              userId: auth.userId,
-            },
-          },
-          create: {
-            tenantId: auth.activeTenant.id,
-            userId: auth.userId,
-            entitlements,
-          },
-          update: {
-            entitlements,
-          },
-        });
+        entitlementCache = await updateEntitlementCache(
+          auth.activeTenant.id,
+          auth.userId,
+          entitlements
+        );
       } catch (error) {
         request.log.warn({
           err: error,

@@ -3,6 +3,7 @@ import prisma from '../lib/prisma.js';
 import paymentsClient from '../clients/payments.js';
 import { logAuditEvent, AuditActions } from '../services/audit.js';
 import env from '../lib/env.js';
+import { isCacheStale, updateBillingCache, CACHE_TTL } from '../services/cache.service.js';
 
 export async function billingRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /billing/subscription - Get current subscription
@@ -27,29 +28,13 @@ export async function billingRoutes(fastify: FastifyInstance): Promise<void> {
     });
 
     // Refresh if cache is stale (older than 1 minute)
-    const cacheAge = billingCache ? Date.now() - billingCache.updatedAt.getTime() : Infinity;
-    const cacheStale = cacheAge > 60 * 1000;
-
-    if (!billingCache || cacheStale) {
+    if (!billingCache || isCacheStale(billingCache, CACHE_TTL.BILLING)) {
       // Fetch from payments.mojo with fallback to stale cache
       try {
         const subscription = await paymentsClient.getSubscription(auth.userId, auth.activeTenant.id);
 
-        billingCache = await prisma.billingCache.upsert({
-          where: {
-            tenantId_userId: {
-              tenantId: auth.activeTenant.id,
-              userId: auth.userId,
-            },
-          },
-          create: {
-            tenantId: auth.activeTenant.id,
-            userId: auth.userId,
-            subscription: subscription || null,
-          },
-          update: {
-            subscription: subscription || null,
-          },
+        billingCache = await updateBillingCache(auth.activeTenant.id, auth.userId, {
+          subscription: subscription || null,
         });
       } catch (error) {
         // Fallback: Use stale cache if available
@@ -105,29 +90,13 @@ export async function billingRoutes(fastify: FastifyInstance): Promise<void> {
     });
 
     // Refresh if cache is stale
-    const cacheAge = billingCache ? Date.now() - billingCache.updatedAt.getTime() : Infinity;
-    const cacheStale = cacheAge > 60 * 1000;
-
-    if (!billingCache?.invoices || cacheStale) {
+    if (!billingCache?.invoices || isCacheStale(billingCache, CACHE_TTL.BILLING)) {
       // Fetch from payments.mojo with fallback to stale cache
       try {
         const invoices = await paymentsClient.getInvoices(auth.userId, auth.activeTenant.id);
 
-        billingCache = await prisma.billingCache.upsert({
-          where: {
-            tenantId_userId: {
-              tenantId: auth.activeTenant.id,
-              userId: auth.userId,
-            },
-          },
-          create: {
-            tenantId: auth.activeTenant.id,
-            userId: auth.userId,
-            invoices,
-          },
-          update: {
-            invoices,
-          },
+        billingCache = await updateBillingCache(auth.activeTenant.id, auth.userId, {
+          invoices,
         });
       } catch (error) {
         // Fallback: Use stale cache if available
