@@ -62,7 +62,16 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
-          npm ci --legacy-peer-deps
+          echo "Installing dependencies..."
+          echo "NPM_TOKEN is set: $([ -n \"$NPM_TOKEN\" ] && echo 'yes' || echo 'no')"
+          npm ci --legacy-peer-deps 2>&1 | head -100 || {
+            echo "❌ npm ci failed"
+            echo "Checking npm config..."
+            npm config list
+            echo "Checking .npmrc..."
+            cat ~/.npmrc || echo "No ~/.npmrc found"
+            exit 1
+          }
 
       - name: Build Shared Package
         run: npm run build:shared
@@ -152,7 +161,16 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
-          npm ci --legacy-peer-deps
+          echo "Installing dependencies..."
+          echo "NPM_TOKEN is set: $([ -n \"$NPM_TOKEN\" ] && echo 'yes' || echo 'no')"
+          npm ci --legacy-peer-deps 2>&1 | head -100 || {
+            echo "❌ npm ci failed"
+            echo "Checking npm config..."
+            npm config list
+            echo "Checking .npmrc..."
+            cat ~/.npmrc || echo "No ~/.npmrc found"
+            exit 1
+          }
 
       - name: Build Shared Package
         run: npm run build:shared
@@ -230,7 +248,16 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
-          npm ci --legacy-peer-deps
+          echo "Installing dependencies..."
+          echo "NPM_TOKEN is set: $([ -n \"$NPM_TOKEN\" ] && echo 'yes' || echo 'no')"
+          npm ci --legacy-peer-deps 2>&1 | head -100 || {
+            echo "❌ npm ci failed"
+            echo "Checking npm config..."
+            npm config list
+            echo "Checking .npmrc..."
+            cat ~/.npmrc || echo "No ~/.npmrc found"
+            exit 1
+          }
 
       - name: Setup Test Database
         env:
