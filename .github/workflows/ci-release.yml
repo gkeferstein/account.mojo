@@ -566,6 +566,8 @@ jobs:
             GIT_BRANCH=${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          secrets: |
+            "npm_token=${{ steps.docker-token.outputs.token }}"
 
       - name: Sign Web Image
         continue-on-error: true
