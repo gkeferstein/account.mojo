@@ -10,6 +10,7 @@ import { createClerkClient, verifyToken } from '@clerk/backend';
 import prisma from '../lib/prisma.js';
 import env from '../lib/env.js';
 import { TENANT_HEADERS } from '../lib/constants.js';
+import { appLogger } from '../lib/logger.js';
 import type { User, Tenant, TenantMembership, TenantRole } from '@prisma/client';
 
 // Local tenant types (accounts.mojo is the SSOT, so we define them here)
@@ -96,7 +97,7 @@ async function getOrCreateUser(clerkUserId: string, email: string, firstName?: s
         avatarUrl,
       },
     });
-    console.log(`📝 User created via JWT auth: ${clerkUserId}`);
+    appLogger.info('User created via JWT auth', { clerkUserId });
   } else {
     // Update user info if changed
     if (user.email !== email || user.firstName !== firstName || user.lastName !== lastName || user.avatarUrl !== avatarUrl) {
@@ -154,7 +155,11 @@ async function ensurePersonalTenant(user: User): Promise<void> {
     },
   });
 
-  console.log(`📝 Personal tenant created as fallback for user ${user.id}: ${tenant.slug}`);
+  appLogger.info('Personal tenant created as fallback', {
+    userId: user.id,
+    tenantId: tenant.id,
+    tenantSlug: tenant.slug,
+  });
 }
 
 // Get user's tenants with memberships
@@ -195,7 +200,9 @@ async function mapClerkOrgToTenant(clerkOrgId: string, _user: User): Promise<Ten
 
   if (!tenant) {
     // Tenant should be created via webhook - log warning if not found
-    console.warn(`⚠️ Tenant not found for clerkOrgId: ${clerkOrgId} (should be created via webhook)`);
+    appLogger.warn('Tenant not found for clerkOrgId (should be created via webhook)', {
+      clerkOrgId,
+    });
     return null;
   }
 

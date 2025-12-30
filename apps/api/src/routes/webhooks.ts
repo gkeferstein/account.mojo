@@ -51,7 +51,7 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
   }, async (request, reply) => {
     const payload = request.body as WebhookPayload;
     
-    console.log(`📥 Payment webhook received: ${payload.event}`);
+    request.log.info('Payment webhook received', { event: payload.event });
 
     try {
       switch (payload.event) {
@@ -74,7 +74,7 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
           });
 
           if (!user) {
-            console.warn(`User not found for clerkUserId: ${userId}`);
+            request.log.warn('User not found for webhook', { clerkUserId: userId, event: payload.event });
             return reply.send({ received: true, processed: false, reason: 'User not found' });
           }
 
@@ -96,7 +96,7 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
             },
           });
 
-          console.log(`✅ Updated billing cache for user ${user.id}`);
+          request.log.info('Updated billing cache', { userId: user.id, event: payload.event });
           break;
         }
 
@@ -150,7 +150,7 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
             },
           });
 
-          console.log(`✅ Updated invoice cache for user ${user.id}`);
+          request.log.info('Updated invoice cache', { userId: user.id, event: payload.event });
           break;
         }
 
@@ -191,17 +191,21 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
             },
           });
 
-          console.log(`✅ Updated entitlement cache for user ${user.id}`);
+          request.log.info('Updated entitlement cache', { userId: user.id, event: payload.event });
           break;
         }
 
         default:
-          console.log(`⚠️ Unhandled payment event: ${payload.event}`);
+          request.log.warn('Unhandled payment event', { event: payload.event });
       }
 
       return reply.send({ received: true, processed: true });
     } catch (error) {
-      console.error('Error processing payment webhook:', error);
+      request.log.error('Error processing payment webhook', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        event: payload.event,
+      });
       return reply.status(500).send({ error: 'Internal error processing webhook' });
     }
   });
@@ -214,7 +218,7 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
   }, async (request, reply) => {
     const payload = request.body as WebhookPayload;
     
-    console.log(`📥 CRM webhook received: ${payload.event}`);
+    request.log.info('CRM webhook received', { event: payload.event });
 
     try {
       switch (payload.event) {
@@ -267,23 +271,27 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
             });
           }
 
-          console.log(`✅ Updated profile cache for user ${user.id}`);
+          request.log.info('Updated profile cache', { userId: user.id, event: payload.event });
           break;
         }
 
         case 'consent.updated': {
           // Handle consent updates from CRM
-          console.log('Consent update received, no local cache action needed');
+          request.log.info('Consent update received, no local cache action needed', { userId: user.id });
           break;
         }
 
         default:
-          console.log(`⚠️ Unhandled CRM event: ${payload.event}`);
+          request.log.warn('Unhandled CRM event', { event: payload.event });
       }
 
       return reply.send({ received: true, processed: true });
     } catch (error) {
-      console.error('Error processing CRM webhook:', error);
+      request.log.error('Error processing CRM webhook', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        event: payload.event,
+      });
       return reply.status(500).send({ error: 'Internal error processing webhook' });
     }
   });
