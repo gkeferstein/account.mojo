@@ -10,6 +10,8 @@ interface ErrorResponse {
   stack?: string;
 }
 
+const isDevelopment = process.env.NODE_ENV === 'development';
+
 export function errorHandler(
   error: FastifyError,
   request: FastifyRequest,
@@ -41,42 +43,65 @@ export function errorHandler(
         statusCode = 409;
         response.error = 'Conflict';
         response.message = 'A record with this value already exists';
-        response.code = error.code;
+        // Only include Prisma error code in development
+        if (isDevelopment) {
+          response.code = error.code;
+        }
         break;
       case 'P2025':
         statusCode = 404;
         response.error = 'Not Found';
         response.message = 'The requested resource was not found';
-        response.code = error.code;
+        // Only include Prisma error code in development
+        if (isDevelopment) {
+          response.code = error.code;
+        }
         break;
       case 'P2003':
         statusCode = 400;
         response.error = 'Bad Request';
         response.message = 'Foreign key constraint failed';
-        response.code = error.code;
+        // Only include Prisma error code in development
+        if (isDevelopment) {
+          response.code = error.code;
+        }
         break;
       default:
         response.error = 'Database Error';
         response.message = 'A database error occurred';
-        response.code = error.code;
+        // Only include Prisma error code in development
+        if (isDevelopment) {
+          response.code = error.code;
+        }
     }
   }
   // Fastify errors
   else if (error.statusCode) {
     statusCode = error.statusCode;
     response.error = error.name || 'Error';
-    response.message = error.message;
-    if (error.code) {
+    // In production, use generic messages for server errors
+    if (statusCode >= 500 && !isDevelopment) {
+      response.message = 'An unexpected error occurred';
+    } else {
+      response.message = error.message;
+    }
+    // Only include error codes in development
+    if (error.code && isDevelopment) {
       response.code = error.code;
     }
   }
   // Generic errors
   else if (error.message) {
-    response.message = error.message;
+    // In production, don't expose internal error messages
+    if (!isDevelopment) {
+      response.message = 'An unexpected error occurred';
+    } else {
+      response.message = error.message;
+    }
   }
 
   // Include stack trace in development
-  if (process.env.NODE_ENV === 'development' && error.stack) {
+  if (isDevelopment && error.stack) {
     response.stack = error.stack;
   }
 
