@@ -40,31 +40,35 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
       });
     }
 
-    // Create tenant
-    const tenant = await prisma.tenant.create({
-      data: {
-        name: input.name,
-        slug,
-        isPersonal: false,
-      },
-    });
+    // Create tenant, membership, and preferences in a transaction for consistency
+    const tenant = await prisma.$transaction(async (tx) => {
+      const newTenant = await tx.tenant.create({
+        data: {
+          name: input.name,
+          slug,
+          isPersonal: false,
+        },
+      });
 
-    // Create owner membership for creator
-    await prisma.tenantMembership.create({
-      data: {
-        tenantId: tenant.id,
-        userId: auth.userId,
-        role: 'owner',
-        status: 'active',
-      },
-    });
+      // Create owner membership for creator
+      await tx.tenantMembership.create({
+        data: {
+          tenantId: newTenant.id,
+          userId: auth.userId,
+          role: 'owner',
+          status: 'active',
+        },
+      });
 
-    // Create default preferences
-    await prisma.preferences.create({
-      data: {
-        tenantId: tenant.id,
-        userId: auth.userId,
-      },
+      // Create default preferences
+      await tx.preferences.create({
+        data: {
+          tenantId: newTenant.id,
+          userId: auth.userId,
+        },
+      });
+
+      return newTenant;
     });
 
     await logAuditEvent(request, {
