@@ -238,11 +238,12 @@ jobs:
             type=raw,value=latest
 
       - name: Build and push API Docker image
+        if: secrets.GHCR_TOKEN != ''
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./apps/api/Dockerfile
-          push: ${{ secrets.GHCR_TOKEN != '' }}
+          push: true
           tags: ${{ steps.meta-api.outputs.tags }}
           labels: ${{ steps.meta-api.outputs.labels }}
           build-args: |
@@ -262,11 +263,12 @@ jobs:
             type=raw,value=latest
 
       - name: Build and push Web Docker image
+        if: secrets.GHCR_TOKEN != ''
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./apps/web/Dockerfile
-          push: ${{ secrets.GHCR_TOKEN && 'true' || 'false' }}
+          push: true
           tags: ${{ steps.meta-web.outputs.tags }}
           labels: ${{ steps.meta-web.outputs.labels }}
           build-args: |
