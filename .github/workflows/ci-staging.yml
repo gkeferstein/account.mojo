@@ -9,7 +9,6 @@ on:
       - '.gitignore'
       - 'LICENSE'
       - 'docs/**'
-      - 'scripts/**'
       - '.github/workflows/README.md'
 
 permissions:
