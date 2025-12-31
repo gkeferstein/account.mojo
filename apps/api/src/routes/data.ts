@@ -162,7 +162,7 @@ export async function dataRoutes(fastify: FastifyInstance): Promise<void> {
     // Process deletion asynchronously (in production, use a job queue with delay)
     // For now, process immediately - in production, add a 30-day delay
     processAccountDeletion(dataRequest.id, auth.userId, auth.clerkUserId, input.reason).catch((error) => {
-      request.log.error('Failed to process account deletion', { error, dataRequestId: dataRequest.id });
+      request.log.error({ error, dataRequestId: dataRequest.id }, 'Failed to process account deletion');
     });
 
     return reply.status(201).send({
