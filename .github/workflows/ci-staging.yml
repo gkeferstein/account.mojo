@@ -20,6 +20,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   NODE_VERSION: '22'
+  PNPM_VERSION: '10.25.0'
 
 jobs:
   # ============================================
@@ -33,12 +34,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: 'package.json'
+          cache: 'pnpm'
+          cache-dependency-path: 'pnpm-lock.yaml'
 
       - name: Determine npm token
         id: npm-token
@@ -91,7 +97,7 @@ jobs:
 
       - name: Security Audit (High/Critical only)
         run: |
-          npm audit --audit-level=high || echo "⚠️ Security vulnerabilities found"
+          pnpm audit --audit-level=high || echo "⚠️ Security vulnerabilities found"
         continue-on-error: true
 
   # ============================================
@@ -119,12 +125,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: 'package.json'
+          cache: 'pnpm'
+          cache-dependency-path: 'pnpm-lock.yaml'
 
       - name: Determine npm token
         id: npm-token
@@ -161,20 +172,27 @@ jobs:
           find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\^[^"]*"/"*"/g' {} \;
           find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:[^"]*"/"*"/g' {} \;
           echo "✅ Cleaned workspace: references from package.json files"
-          # Use npm install with legacy-peer-deps and --no-package-lock
-          npm install --legacy-peer-deps --no-package-lock || {
-            echo "❌ npm install failed"
-            echo "Checking npm config..."
-            npm config list
-            echo "Checking .npmrc..."
-            cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/' || echo "No ~/.npmrc found"
-            echo "Testing package access..."
-            npm view @gkeferstein/tenant --registry=https://npm.pkg.github.com || echo "Cannot access @gkeferstein/tenant"
-            exit 1
-          }
+          # Use pnpm install
+          if [ -f pnpm-lock.yaml ]; then
+            pnpm install --frozen-lockfile || {
+              echo "❌ pnpm install failed"
+              echo "Checking npm config..."
+              npm config list
+              echo "Checking .npmrc..."
+              cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/' || echo "No ~/.npmrc found"
+              echo "Testing package access..."
+              npm view @gkeferstein/tenant --registry=https://npm.pkg.github.com || echo "Cannot access @gkeferstein/tenant"
+              exit 1
+            }
+          else
+            pnpm install || {
+              echo "❌ pnpm install failed"
+              exit 1
+            }
+          fi
 
       - name: Build Shared Package
-        run: npm run build:shared || echo "⚠️ No build:shared script found, skipping"
+        run: pnpm run build:shared || echo "⚠️ No build:shared script found, skipping"
 
       - name: Setup Test Database
         env:
@@ -189,8 +207,8 @@ jobs:
         env:
           DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_accounts
         run: |
-          if npm run | grep -q "test"; then
-            npm test 2>&1 | tee /tmp/test_output.txt || {
+          if pnpm run | grep -q "test"; then
+            pnpm test 2>&1 | tee /tmp/test_output.txt || {
               if grep -q "No test files found" /tmp/test_output.txt; then
                 echo "ℹ️ No test files found, skipping tests"
                 exit 0
