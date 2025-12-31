@@ -365,7 +365,8 @@ jobs:
           chmod +x scripts/deploy-blue-green.sh || true
           
           # Run Blue-Green deployment
-          scripts/deploy-blue-green.sh staging "${VERSION}" "${APP_NAME}" "${REGISTRY}" "${GITHUB_REPOSITORY}" || {
+          # Script signature: deploy-blue-green.sh <version> <environment>
+          scripts/deploy-blue-green.sh "${VERSION_SHORT}" staging || {
             echo "❌ Deployment failed"
             exit 1
           }
