@@ -35,16 +35,22 @@ if [ "$ENVIRONMENT" = "staging" ]; then
   docker pull "${API_IMAGE}" || { echo "❌ Failed to pull API image"; exit 1; }
   docker pull "${WEB_IMAGE}" || { echo "❌ Failed to pull Web image"; exit 1; }
   
-  # Step 2: Deploy using staging compose file
+  # Step 2: Stop existing containers (if any)
+  echo "🛑 Stopping existing staging containers..."
+  ${COMPOSE_CMD} -f infra/docker-compose.staging.yml down || true
+  
+  # Step 3: Deploy using staging compose file
   echo "🔄 Deploying to staging..."
   export API_IMAGE="${API_IMAGE}"
   export WEB_IMAGE="${WEB_IMAGE}"
   ${COMPOSE_CMD} -f infra/docker-compose.staging.yml up -d || {
     echo "❌ Deployment failed"
+    echo "Checking logs..."
+    ${COMPOSE_CMD} -f infra/docker-compose.staging.yml logs --tail=50 || true
     exit 1
   }
   
-  # Step 3: Wait for health
+  # Step 4: Wait for health
   echo "⏳ Waiting for services to be healthy..."
   MAX_ATTEMPTS=60
   ATTEMPT=1
