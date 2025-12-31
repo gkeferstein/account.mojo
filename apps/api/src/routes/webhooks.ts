@@ -28,7 +28,7 @@ function verifySignature(payload: string, signature: string, secret: string): bo
 }
 
 // Middleware to verify webhook signatures
-async function verifyWebhookSignature(secret: string) {
+function verifyWebhookSignature(secret: string): (request: FastifyRequest, reply: FastifyReply) => Promise<void> {
   return async (request: FastifyRequest, reply: FastifyReply) => {
     const signature = request.headers['x-webhook-signature'] as string;
     // Body is already a string due to content type parser
@@ -114,10 +114,10 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
             create: {
               tenantId,
               userId: user.id,
-              subscription,
+              subscription: subscription as any,
             },
             update: {
-              subscription: payload.event === 'subscription.deleted' ? null : subscription,
+              subscription: payload.event === 'subscription.deleted' ? null : (subscription as any),
             },
           });
 
@@ -168,10 +168,10 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
             create: {
               tenantId,
               userId: user.id,
-              invoices: updatedInvoices,
+              invoices: updatedInvoices as any,
             },
             update: {
-              invoices: updatedInvoices,
+              invoices: updatedInvoices as any,
             },
           });
 
@@ -209,10 +209,10 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
             create: {
               tenantId,
               userId: user.id,
-              entitlements,
+              entitlements: entitlements as any,
             },
             update: {
-              entitlements,
+              entitlements: entitlements as any,
             },
           });
 

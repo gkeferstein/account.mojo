@@ -111,10 +111,10 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
       create: {
         tenantId: auth.activeTenant.id,
         userId: auth.userId,
-        payload: updatedProfile,
+        payload: updatedProfile as any,
       },
       update: {
-        payload: updatedProfile,
+        payload: updatedProfile as any,
       },
     });
 
@@ -171,7 +171,7 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
 
     await logAuditEvent(request, {
       action: AuditActions.PREFERENCES_UPDATE,
-      metadata: { type: 'consents', changes: consents },
+      metadata: { type: 'consents', changes: input.consents },
     });
 
     return reply.send({ consents: updatedConsents });

@@ -35,7 +35,7 @@ export async function preferencesRoutes(fastify: FastifyInstance): Promise<void>
     });
 
     const preferences = prefs?.payload 
-      ? { ...DEFAULT_PREFERENCES, ...(prefs.payload as Preferences) }
+      ? { ...DEFAULT_PREFERENCES, ...(prefs.payload as unknown as Preferences) }
       : DEFAULT_PREFERENCES;
 
     return reply.send(preferences);
@@ -63,7 +63,7 @@ export async function preferencesRoutes(fastify: FastifyInstance): Promise<void>
       },
     });
 
-    const currentPayload = currentPrefs?.payload as Preferences | null;
+    const currentPayload = currentPrefs?.payload as unknown as Preferences | null;
     const newPayload = {
       ...DEFAULT_PREFERENCES,
       ...currentPayload,

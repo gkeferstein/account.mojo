@@ -59,7 +59,7 @@ export async function entitlementsRoutes(fastify: FastifyInstance): Promise<void
       }
     }
 
-    const entitlements = (entitlementCache.entitlements as Entitlement[]) || [];
+    const entitlements = (entitlementCache.entitlements as unknown as Entitlement[]) || [];
 
     // Group by type (matching new payments.mojo resource_types)
     const grouped = {
@@ -149,7 +149,7 @@ export async function entitlementsRoutes(fastify: FastifyInstance): Promise<void
       }
     }
 
-    const entitlements = (entitlementCache.entitlements as Entitlement[]) || [];
+    const entitlements = (entitlementCache.entitlements as unknown as Entitlement[]) || [];
     const entitlement = entitlements.find((e) => e.resourceId === resourceId);
 
     if (!entitlement) {
