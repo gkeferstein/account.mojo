@@ -851,6 +851,7 @@ jobs:
           ssh-keyscan -H ${{ secrets.DEPLOY_SERVER }} >> ~/.ssh/known_hosts
 
       - name: Blue-Green Deployment
+        if: steps.check-ssh.outputs.ssh_available == 'true'
         id: deploy
         run: |
           export REGISTRY="${{ env.REGISTRY }}"
