@@ -100,6 +100,15 @@ jobs:
       - name: Build Shared Package
         run: npm run build:shared
 
+      - name: Generate Prisma Client
+        working-directory: ./apps/api
+        run: |
+          if [ -d prisma ]; then
+            npx prisma generate
+          else
+            echo "ℹ️ No prisma directory found, skipping"
+          fi
+
       - name: TypeScript Compile Check (API)
         run: |
           cd apps/api

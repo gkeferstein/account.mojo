@@ -37,15 +37,16 @@ export function errorHandler(
     };
   }
   // Prisma errors
-  else if (error instanceof Prisma.PrismaClientKnownRequestError) {
-    switch (error.code) {
+  else if (error && typeof error === 'object' && 'code' in error && 'meta' in error) {
+    const prismaError = error as Prisma.PrismaClientKnownRequestError;
+    switch (prismaError.code) {
       case 'P2002':
         statusCode = 409;
         response.error = 'Conflict';
         response.message = 'A record with this value already exists';
         // Only include Prisma error code in development
         if (isDevelopment) {
-          response.code = error.code;
+          response.code = prismaError.code;
         }
         break;
       case 'P2025':
@@ -54,7 +55,7 @@ export function errorHandler(
         response.message = 'The requested resource was not found';
         // Only include Prisma error code in development
         if (isDevelopment) {
-          response.code = error.code;
+          response.code = prismaError.code;
         }
         break;
       case 'P2003':
@@ -63,7 +64,7 @@ export function errorHandler(
         response.message = 'Foreign key constraint failed';
         // Only include Prisma error code in development
         if (isDevelopment) {
-          response.code = error.code;
+          response.code = prismaError.code;
         }
         break;
       default:
@@ -71,7 +72,7 @@ export function errorHandler(
         response.message = 'A database error occurred';
         // Only include Prisma error code in development
         if (isDevelopment) {
-          response.code = error.code;
+          response.code = prismaError.code;
         }
     }
   }

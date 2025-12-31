@@ -408,11 +408,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
             });
           }
 
-          request.log.info('Membership created via webhook', {
-            clerkUserId,
-            clerkOrgId,
-            role: memberData.role,
-          });
+          request.log.info({ clerkUserId, clerkOrgId, role: memberData.role }, 'Membership created via webhook');
           break;
         }
 

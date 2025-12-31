@@ -91,7 +91,7 @@ export async function dataRoutes(fastify: FastifyInstance): Promise<void> {
 
     // Process export asynchronously (in production, use a job queue)
     processDataExport(dataRequest.id, auth.userId, auth.clerkUserId).catch((error) => {
-      request.log.error('Failed to process data export', { error, dataRequestId: dataRequest.id });
+      request.log.error({ error, dataRequestId: dataRequest.id }, 'Failed to process data export');
     });
 
     return reply.status(201).send({
@@ -106,7 +106,8 @@ export async function dataRoutes(fastify: FastifyInstance): Promise<void> {
   // POST /data/delete-request - Request account deletion
   fastify.post('/data/delete-request', async (request, reply) => {
     const { auth } = request;
-    const input = createDataRequestSchema.parse({ ...request.body, type: 'delete' });
+    const body = request.body as Record<string, unknown>;
+    const input = createDataRequestSchema.parse({ ...body, type: 'delete' });
 
     if (!auth.activeTenant) {
       return reply.status(400).send({
