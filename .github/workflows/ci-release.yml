@@ -873,6 +873,11 @@ jobs:
           set -e
           PROJECT_DIR="/root/projects/accounts.mojo"
           
+          if [ ! -d "$PROJECT_DIR" ]; then
+            echo "❌ Project directory $PROJECT_DIR not found on server. Exiting."
+            exit 1
+          fi
+          
           cd "$PROJECT_DIR" || exit 1
           git fetch origin
           git pull origin main || git pull origin production || true
