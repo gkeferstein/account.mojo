@@ -29,7 +29,7 @@ export async function logAuditEvent(
         resourceId: params.resourceId || null,
         ip: request.ip || null,
         userAgent: request.headers['user-agent'] || null,
-        metadata: params.metadata || null,
+        metadata: (params.metadata || null) as any,
       },
     });
   } catch (error) {

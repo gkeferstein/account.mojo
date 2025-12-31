@@ -142,7 +142,7 @@ export class BaseHttpClient {
             // Get error message for logging
             const errorData = await response.json().catch(() => ({ 
               message: `HTTP ${response.status}` 
-            }));
+            })) as { message?: string; error?: { message?: string } };
             lastError = new Error(errorData.message || errorData.error?.message || `HTTP ${response.status}`);
             
             // Wait before retry (except on last attempt)
@@ -153,11 +153,11 @@ export class BaseHttpClient {
 
         // Success or non-retryable error
         if (!response.ok) {
-          const error = await response.json().catch(() => ({ message: 'Unknown error' }));
+          const error = await response.json().catch(() => ({ message: 'Unknown error' })) as { message?: string; error?: { message?: string } };
           throw new Error(error.message || error.error?.message || `HTTP ${response.status}`);
         }
 
-        return await response.json();
+        return await response.json() as T;
 
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
