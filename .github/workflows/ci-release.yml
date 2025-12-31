@@ -171,6 +171,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+          cache-dependency-path: 'package.json'
 
       - name: Determine npm token
         id: npm-token
@@ -282,6 +283,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+          cache-dependency-path: 'package.json'
 
       - name: Determine npm token
         id: npm-token
@@ -387,6 +389,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+          cache-dependency-path: 'package.json'
 
       - name: Determine npm token
         id: npm-token
@@ -489,6 +492,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+          cache-dependency-path: 'package.json'
 
       - name: Determine npm token
         id: npm-token
