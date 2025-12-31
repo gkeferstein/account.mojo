@@ -417,258 +417,12 @@ jobs:
           fi
 
   # ============================================
-  # BUILD & PUSH DOCKER IMAGES
-  # ============================================
-  build-images:
-    name: Build & Push Docker Images
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [code-quality, tests, database-checks]
-    if: needs.code-quality.result == 'success' && needs.tests.result == 'success' && needs.database-checks.result == 'success'
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Check GHCR Token
-        id: check-ghcr
-        run: |
-          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
-            echo "token_exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "token_exists=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Log in to GitHub Container Registry
-        if: steps.check-ghcr.outputs.token_exists == 'true'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }}
-
-      - name: Extract metadata (API)
-        id: meta-api
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-api
-          tags: |
-            type=sha,prefix=,format=long
-            type=raw,value=latest
-
-      - name: Determine Docker npm token
-        id: docker-npm-token
-        run: |
-          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
-            echo "token=${{ secrets.GHCR_TOKEN }}" >> $GITHUB_OUTPUT
-            echo "✅ Using GHCR_TOKEN for Docker builds"
-          else
-            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
-            echo "⚠️ GHCR_TOKEN not found, using GITHUB_TOKEN as fallback"
-          fi
-
-      - name: Build and push API Docker image
-        if: steps.check-ghcr.outputs.token_exists == 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./apps/api/Dockerfile
-          push: true
-          tags: ${{ steps.meta-api.outputs.tags }}
-          labels: ${{ steps.meta-api.outputs.labels }}
-          build-args: |
-            NPM_TOKEN=${{ steps.docker-npm-token.outputs.token }}
-            GIT_COMMIT=${{ github.sha }}
-            BUILD_DATE=${{ github.event.head_commit.timestamp || github.run_started_at }}
-            GIT_BRANCH=${{ github.ref_name }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Extract metadata (Web)
-        id: meta-web
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-web
-          tags: |
-            type=sha,prefix=,format=long
-            type=raw,value=latest
-
-      - name: Build and push Web Docker image
-        if: steps.check-ghcr.outputs.token_exists == 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./apps/web/Dockerfile
-          push: true
-          tags: ${{ steps.meta-web.outputs.tags }}
-          labels: ${{ steps.meta-web.outputs.labels }}
-          build-args: |
-            NPM_TOKEN=${{ steps.docker-npm-token.outputs.token }}
-            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL || 'https://accounts.mojo-institut.de' }}
-            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-            NEXT_PUBLIC_PAYMENTS_API_URL=${{ secrets.NEXT_PUBLIC_PAYMENTS_API_URL || 'https://payments.mojo-institut.de/api' }}
-            GIT_COMMIT=${{ github.sha }}
-            BUILD_DATE=${{ github.event.head_commit.timestamp || github.run_started_at }}
-            GIT_BRANCH=${{ github.ref_name }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-    outputs:
-      api-image: ${{ steps.meta-api.outputs.tags }}
-      web-image: ${{ steps.meta-web.outputs.tags }}
-
-  # ============================================
-  # AUTO-DEPLOY TO DEV (optional)
-  # ============================================
-  deploy-dev:
-    name: Deploy to Development
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    needs: [build-images]
-    if: needs.build-images.result == 'success' && github.ref == 'refs/heads/main'
-    environment:
-      name: development
-      url: https://dev.account.mojo-institut.de
-
-    steps:
-      - name: Check SSH Key
-        id: check-ssh
-        run: |
-          if [ -z "${{ secrets.DEPLOY_SSH_DEV }}" ]; then
-            echo "ssh_available=false" >> $GITHUB_OUTPUT
-            echo "⚠️ DEPLOY_SSH_DEV secret not found, skipping deployment"
-          else
-            echo "ssh_available=true" >> $GITHUB_OUTPUT
-            echo "✅ SSH key available"
-          fi
-
-      - name: Setup SSH
-        if: steps.check-ssh.outputs.ssh_available == 'true'
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.DEPLOY_SSH_DEV }}
-
-      - name: Add server to known hosts
-        if: steps.check-ssh.outputs.ssh_available == 'true'
-        run: |
-          ssh-keyscan -H ${{ secrets.DEPLOY_SERVER_DEV }} >> ~/.ssh/known_hosts
-
-      - name: Deploy to Development Server
-        if: steps.check-ssh.outputs.ssh_available == 'true'
-        run: |
-          export REGISTRY="${{ env.REGISTRY }}"
-          export GITHUB_REPOSITORY="${{ github.repository }}"
-          export GITHUB_ACTOR="${{ github.actor }}"
-          export GITHUB_SHA="${{ github.sha }}"
-          export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
-          export IMAGE_TAG="latest"
-          export API_IMAGE_NAME="${REGISTRY}/${GITHUB_REPOSITORY}-api:${IMAGE_TAG}"
-          export WEB_IMAGE_NAME="${REGISTRY}/${GITHUB_REPOSITORY}-web:${IMAGE_TAG}"
-          
-          ssh -T -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_DEV }} \
-            REGISTRY="${REGISTRY}" \
-            GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
-            GITHUB_ACTOR="${GITHUB_ACTOR}" \
-            GITHUB_TOKEN="${GITHUB_TOKEN}" \
-            IMAGE_TAG="${IMAGE_TAG}" \
-            API_IMAGE_NAME="${API_IMAGE_NAME}" \
-            WEB_IMAGE_NAME="${WEB_IMAGE_NAME}" \
-            bash << 'DEPLOY_EOF'
-          set -e
-          PROJECT_DIR="/root/projects/accounts.mojo"
-          
-          if [ ! -d "$PROJECT_DIR" ]; then
-            mkdir -p "$PROJECT_DIR"
-          fi
-          
-          if [ ! -d "$PROJECT_DIR/.git" ]; then
-            REPO_URL="https://${GITHUB_ACTOR}:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-            git clone "$REPO_URL" "$PROJECT_DIR" || exit 1
-          fi
-          
-          cd "$PROJECT_DIR" || exit 1
-          git remote set-url origin "https://${GITHUB_ACTOR}:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git fetch origin
-          git checkout main
-          git pull origin main
-          
-          if [ ! -f .env ]; then
-            if [ -f .env.example ]; then
-              cp .env.example .env
-            else
-              echo "❌ .env.example not found!"
-              exit 1
-            fi
-          fi
-          
-          echo "${{ secrets.GHCR_TOKEN }}" | docker login ${REGISTRY} -u ${GITHUB_ACTOR} --password-stdin
-          
-          if docker compose version >/dev/null 2>&1; then
-            COMPOSE_CMD="docker compose"
-          elif command -v docker-compose >/dev/null 2>&1; then
-            COMPOSE_CMD="docker-compose"
-          else
-            echo "❌ Docker Compose not found!"
-            exit 1
-          fi
-          
-          run_compose() {
-            eval "$COMPOSE_CMD $*"
-          }
-          
-          docker image prune -f || true
-          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
-            docker pull "${API_IMAGE_NAME}" || echo "⚠️ Failed to pull API image, will build locally"
-            docker pull "${WEB_IMAGE_NAME}" || echo "⚠️ Failed to pull Web image, will build locally"
-          else
-            echo "ℹ️ GHCR_TOKEN not set, building images locally"
-          fi
-          
-          if ! docker volume ls | grep -q "accounts-db-data"; then
-            docker volume create accounts-db-data
-          fi
-          
-          run_compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml down --remove-orphans || true
-          run_compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up -d --build db api
-          
-          MAX_ATTEMPTS=30
-          ATTEMPT=1
-          while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
-            HEALTH_STATUS=$(docker inspect accounts-api --format='{{.State.Health.Status}}' 2>/dev/null || echo "unhealthy")
-            if [ "$HEALTH_STATUS" = "healthy" ]; then
-              echo "✅ API service is healthy"
-              break
-            fi
-            if [ "$ATTEMPT" -eq "$MAX_ATTEMPTS" ]; then
-              echo "❌ API service not ready"
-              run_compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml logs --tail=50 api
-              exit 1
-            fi
-            sleep 2
-            ATTEMPT=$((ATTEMPT + 1))
-          done
-          
-          # Run migrations
-          docker exec accounts-api npx prisma migrate deploy || echo "⚠️ Migrations failed but continuing"
-          
-          run_compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up -d web
-          sleep 10
-          echo "✅ Deployment completed"
-          DEPLOY_EOF
-
-  # ============================================
   # NOTIFICATIONS
   # ============================================
   notify:
     name: Send Notifications
     runs-on: ubuntu-latest
-    needs: [code-quality, tests, database-checks, build-images]
+    needs: [code-quality, tests, database-checks]
     if: always()
     steps:
       - name: Check Pipeline Status
@@ -676,7 +430,7 @@ jobs:
         run: |
           if [ "${{ needs.code-quality.result }}" == "failure" ] || \
              [ "${{ needs.tests.result }}" == "failure" ] || \
-             [ "${{ needs.build-images.result }}" == "failure" ]; then
+             [ "${{ needs.database-checks.result }}" == "failure" ]; then
             echo "status=failure" >> $GITHUB_OUTPUT
             echo "message=Pipeline failed! Check workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           else
@@ -714,7 +468,6 @@ jobs:
             - Code Quality: ${{ needs.code-quality.result }}
             - Tests: ${{ needs.tests.result }}
             - Database Checks: ${{ needs.database-checks.result }}
-            - Build Images: ${{ needs.build-images.result }}
           html_body: |
             <h2>❌ CI Pipeline Failed</h2>
             <p><strong>Repository:</strong> ${{ github.repository }}</p>
@@ -727,6 +480,5 @@ jobs:
               <li>Code Quality: ${{ needs.code-quality.result }}</li>
               <li>Tests: ${{ needs.tests.result }}</li>
               <li>Database Checks: ${{ needs.database-checks.result }}</li>
-              <li>Build Images: ${{ needs.build-images.result }}</li>
             </ul>
 

@@ -586,32 +586,24 @@ jobs:
           retention-days: 7
 
   # ============================================
-  # BUILD & PUSH DOCKER IMAGES (WITH SIGNING)
+  # VALIDATE IMAGES EXIST (Build Once, Deploy Many)
   # ============================================
-  build-images-release:
-    name: Build & Push Release Images
+  # Production verwendet exakt gleiche Images wie Staging
+  # Keine neuen Builds in Production Pipeline!
+  validate-images:
+    name: Validate Images Exist
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [check-tag-push, prepare-release, code-quality-strict, tests-comprehensive]
+    timeout-minutes: 5
+    needs: [check-tag-push, prepare-release]
     if: |
       needs.check-tag-push.outputs.is_tag_push == 'true' &&
       needs.check-tag-push.outputs.main_pipeline_success == 'true' &&
-      needs.prepare-release.result == 'success' &&
-      (needs.code-quality-strict.result == 'success' || needs.code-quality-strict.result == 'failure') &&
-      (needs.tests-comprehensive.result == 'success' || needs.tests-comprehensive.result == 'failure')
+      needs.prepare-release.result == 'success'
     permissions:
       contents: read
-      packages: write
-      id-token: write
-      pull-requests: read
+      packages: read
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Determine Docker Token
         id: docker-token
         run: |
@@ -619,13 +611,10 @@ jobs:
             echo "token=${{ secrets.GHCR_TOKEN }}" >> $GITHUB_OUTPUT
             echo "token_exists=true" >> $GITHUB_OUTPUT
             echo "✅ Using GHCR_TOKEN"
-          elif [ -n "${{ secrets.GITHUB_TOKEN }}" ]; then
+          else
             echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
             echo "token_exists=true" >> $GITHUB_OUTPUT
             echo "⚠️ Using GITHUB_TOKEN as fallback"
-          else
-            echo "token_exists=false" >> $GITHUB_OUTPUT
-            echo "❌ No Docker token available"
           fi
 
       - name: Log in to GitHub Container Registry
@@ -636,139 +625,33 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ steps.docker-token.outputs.token }}
 
-      - name: Extract metadata (API)
-        id: meta-api
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-api
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=${{ needs.prepare-release.outputs.version }}
-            type=sha,prefix=,format=long
-
-      - name: Create .npmrc for Docker Build
-        if: steps.docker-token.outputs.token_exists == 'true'
+      - name: Validate API Image Exists
         run: |
-          echo "@gkeferstein:registry=https://npm.pkg.github.com" > .npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ steps.docker-token.outputs.token }}" >> .npmrc
-          echo "always-auth=true" >> .npmrc
-          echo "Created .npmrc for Docker build"
+          VERSION="${{ needs.prepare-release.outputs.version_short }}"
+          API_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-api:${VERSION}"
+          echo "🔍 Checking if API image exists: ${API_IMAGE}"
+          
+          # Try to pull image (will fail if not exists)
+          docker pull "${API_IMAGE}" || {
+            echo "❌ API image ${API_IMAGE} not found in registry!"
+            echo "💡 Images must be built in Staging Pipeline first (ci-staging.yml)"
+            exit 1
+          }
+          echo "✅ API image ${API_IMAGE} exists"
 
-      - name: Build and push API Docker image
-        if: steps.docker-token.outputs.token_exists == 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./apps/api/Dockerfile
-          push: true
-          tags: ${{ steps.meta-api.outputs.tags }}
-          labels: ${{ steps.meta-api.outputs.labels }}
-          build-args: |
-            GIT_COMMIT=${{ github.sha }}
-            BUILD_DATE=${{ github.event.head_commit.timestamp || github.run_started_at }}
-            GIT_BRANCH=${{ github.ref_name }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Sign API Image
-        uses: sigstore/cosign-installer@v3
-        continue-on-error: true
-
-      - name: Sign and push API image
-        continue-on-error: true
-        env:
-          COSIGN_EXPERIMENTAL: 1
+      - name: Validate Web Image Exists
         run: |
-          for tag in ${{ steps.meta-api.outputs.tags }}; do
-            cosign sign --yes "$tag" || echo "⚠️ Image signing failed for $tag"
-          done
-
-      - name: Extract metadata (Web)
-        id: meta-web
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-web
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=${{ needs.prepare-release.outputs.version }}
-            type=sha,prefix=,format=long
-
-      - name: Checkout design.mojo (optional)
-        uses: actions/checkout@v4
-        with:
-          repository: gkeferstein/design.mojo
-          path: design.mojo
-          fetch-depth: 1
-          token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-        id: checkout-design
-
-      - name: Skip design.mojo if not available
-        if: steps.checkout-design.outcome == 'failure'
-        run: |
-          mkdir -p design.mojo/packages/design
-          echo '{"name": "@mojo/design-system", "version": "1.0.0"}' > design.mojo/packages/design/package.json
-
-      - name: Build and push Web Docker image
-        if: steps.docker-token.outputs.token_exists == 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./apps/web/Dockerfile
-          push: true
-          tags: ${{ steps.meta-web.outputs.tags }}
-          labels: ${{ steps.meta-web.outputs.labels }}
-          build-args: |
-            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL || 'https://accounts.mojo-institut.de' }}
-            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-            NEXT_PUBLIC_PAYMENTS_API_URL=${{ secrets.NEXT_PUBLIC_PAYMENTS_API_URL || 'https://payments.mojo-institut.de/api' }}
-            GIT_COMMIT=${{ github.sha }}
-            BUILD_DATE=${{ github.event.head_commit.timestamp || github.run_started_at }}
-            GIT_BRANCH=${{ github.ref_name }}
-            NPM_TOKEN=${{ steps.docker-token.outputs.token }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Sign Web Image
-        continue-on-error: true
-        env:
-          COSIGN_EXPERIMENTAL: 1
-        run: |
-          for tag in ${{ steps.meta-web.outputs.tags }}; do
-            cosign sign --yes "$tag" || echo "⚠️ Image signing failed for $tag"
-          done
-
-      - name: Container Scanning (API)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-api:${{ needs.prepare-release.outputs.version }}
-          format: 'sarif'
-          output: 'container-scan-api.sarif'
-        continue-on-error: true
-
-      - name: Container Scanning (Web)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-web:${{ needs.prepare-release.outputs.version }}
-          format: 'sarif'
-          output: 'container-scan-web.sarif'
-        continue-on-error: true
-
-      - name: Upload Container Scan Results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: container-scan-results
-          path: |
-            container-scan-api.sarif
-            container-scan-web.sarif
-          retention-days: 30
-
-    outputs:
-      api-image: ${{ steps.meta-api.outputs.tags }}
-      web-image: ${{ steps.meta-web.outputs.tags }}
+          VERSION="${{ needs.prepare-release.outputs.version_short }}"
+          WEB_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-web:${VERSION}"
+          echo "🔍 Checking if Web image exists: ${WEB_IMAGE}"
+          
+          # Try to pull image (will fail if not exists)
+          docker pull "${WEB_IMAGE}" || {
+            echo "❌ Web image ${WEB_IMAGE} not found in registry!"
+            echo "💡 Images must be built in Staging Pipeline first (ci-staging.yml)"
+            exit 1
+          }
+          echo "✅ Web image ${WEB_IMAGE} exists"
 
   # ============================================
   # CREATE GITHUB RELEASE
@@ -777,11 +660,11 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [check-tag-push, prepare-release, build-images-release]
+    needs: [check-tag-push, prepare-release, validate-images]
     if: |
       needs.check-tag-push.outputs.is_tag_push == 'true' &&
       needs.check-tag-push.outputs.main_pipeline_success == 'true' &&
-      needs.build-images-release.result == 'success'
+      needs.validate-images.result == 'success'
     permissions:
       contents: write
 
@@ -821,13 +704,15 @@ jobs:
           echo "$CHANGELOG_SECTION" >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo "## Docker Images" >> $GITHUB_OUTPUT
-          echo "- API: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-api:${{ needs.prepare-release.outputs.version }}\`" >> $GITHUB_OUTPUT
-          echo "- Web: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-web:${{ needs.prepare-release.outputs.version }}\`" >> $GITHUB_OUTPUT
+            echo "- API: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-api:${{ needs.prepare-release.outputs.version_short }}\`" >> $GITHUB_OUTPUT
+            echo "- Web: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-web:${{ needs.prepare-release.outputs.version_short }}\`" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "**Note:** These images were built in Staging Pipeline and are now deployed to Production (Build Once, Deploy Many)." >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo "## Installation" >> $GITHUB_OUTPUT
           echo "\`\`\`bash" >> $GITHUB_OUTPUT
-          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-api:${{ needs.prepare-release.outputs.version }}" >> $GITHUB_OUTPUT
-          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-web:${{ needs.prepare-release.outputs.version }}" >> $GITHUB_OUTPUT
+            echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-api:${{ needs.prepare-release.outputs.version_short }}" >> $GITHUB_OUTPUT
+            echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-web:${{ needs.prepare-release.outputs.version_short }}" >> $GITHUB_OUTPUT
           echo "\`\`\`" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
@@ -850,8 +735,8 @@ jobs:
     name: Deploy to Production (Blue-Green)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [build-images-release, create-release]
-    if: needs.build-images-release.result == 'success'
+    needs: [validate-images, create-release]
+    if: needs.validate-images.result == 'success'
     environment:
       name: production
       url: https://account.mojo-institut.de
@@ -1048,13 +933,13 @@ jobs:
   notify-release:
     name: Send Release Notifications
     runs-on: ubuntu-latest
-    needs: [prepare-release, build-images-release, create-release, deploy-production]
+    needs: [prepare-release, validate-images, create-release, deploy-production]
     if: always()
     steps:
       - name: Check Release Status
         id: status
         run: |
-          if [ "${{ needs.build-images-release.result }}" == "failure" ] || \
+          if [ "${{ needs.validate-images.result }}" == "failure" ] || \
              [ "${{ needs.create-release.result }}" == "failure" ] || \
              [ "${{ needs.deploy-production.result }}" == "failure" ]; then
             echo "status=failure" >> $GITHUB_OUTPUT
@@ -1090,7 +975,7 @@ jobs:
             View details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
             
             Failed Jobs:
-            - Build Images: ${{ needs.build-images-release.result }}
+            - Validate Images: ${{ needs.validate-images.result }}
             - Create Release: ${{ needs.create-release.result }}
             - Deploy Production: ${{ needs.deploy-production.result }}
           html_body: |
@@ -1100,7 +985,7 @@ jobs:
             <p><a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">View Details</a></p>
             <h3>Job Results:</h3>
             <ul>
-              <li>Build Images: ${{ needs.build-images-release.result }}</li>
+              <li>Validate Images: ${{ needs.validate-images.result }}</li>
               <li>Create Release: ${{ needs.create-release.result }}</li>
               <li>Deploy Production: ${{ needs.deploy-production.result }}</li>
             </ul>

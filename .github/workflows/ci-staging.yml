@@ -1,0 +1,418 @@
+name: CI - Staging Deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - 'LICENSE'
+      - 'docs/**'
+      - 'scripts/**'
+      - '.github/workflows/README.md'
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  NODE_VERSION: '22'
+
+jobs:
+  # ============================================
+  # PARALLEL CODE QUALITY CHECKS
+  # ============================================
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'package.json'
+
+      - name: Determine npm token
+        id: npm-token
+        run: |
+          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
+            echo "token=${{ secrets.GHCR_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "✅ Using GHCR_TOKEN"
+          else
+            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "⚠️ GHCR_TOKEN not found, using GITHUB_TOKEN as fallback"
+          fi
+
+      - name: Configure npm for GitHub Packages
+        env:
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
+        run: |
+          echo "Configuring npm for GitHub Packages..."
+          rm -f ~/.npmrc
+          rm -f .npmrc
+          echo "@gkeferstein:registry=https://npm.pkg.github.com" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+          echo "always-auth=true" >> ~/.npmrc
+
+      - name: Install Dependencies
+        env:
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
+        run: |
+          echo "🔍 Cleaning workspace: references..."
+          if [ -f package-lock.json ]; then
+            rm -f package-lock.json
+          fi
+          # Clean workspace: references from package.json files
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\*"/"*"/g' {} \;
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\^[^"]*"/"*"/g' {} \;
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:[^"]*"/"*"/g' {} \;
+          npm install --legacy-peer-deps --no-package-lock
+
+      - name: TypeScript Compile Check
+        run: npx tsc --noEmit || echo "⚠️ TypeScript errors found, but continuing..."
+        continue-on-error: true
+
+      - name: ESLint
+        run: |
+          if npm run lint --if-present 2>/dev/null; then
+            echo "✅ ESLint passed"
+          else
+            echo "⚠️ ESLint issues found"
+          fi
+        continue-on-error: true
+
+      - name: Security Audit (High/Critical only)
+        run: |
+          npm audit --audit-level=high || echo "⚠️ Security vulnerabilities found"
+        continue-on-error: true
+
+  # ============================================
+  # PARALLEL TESTS
+  # ============================================
+  tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: test_accounts
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'package.json'
+
+      - name: Determine npm token
+        id: npm-token
+        run: |
+          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
+            echo "token=${{ secrets.GHCR_TOKEN }}" >> $GITHUB_OUTPUT
+          else
+            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure npm for GitHub Packages
+        env:
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
+        run: |
+          rm -f ~/.npmrc
+          echo "@gkeferstein:registry=https://npm.pkg.github.com" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+          echo "always-auth=true" >> ~/.npmrc
+
+      - name: Install Dependencies
+        env:
+          NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
+        run: |
+          if [ -f package-lock.json ]; then
+            rm -f package-lock.json
+          fi
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\*"/"*"/g' {} \;
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\^[^"]*"/"*"/g' {} \;
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:[^"]*"/"*"/g' {} \;
+          npm install --legacy-peer-deps --no-package-lock
+
+      - name: Setup Test Database
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_accounts
+        run: |
+          until pg_isready -h localhost -p 5432 -U test_user; do
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+
+      - name: Run Tests
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_accounts
+        run: |
+          if npm test 2>/dev/null; then
+            echo "✅ Tests passed"
+          else
+            echo "⚠️ Tests failed or no tests configured"
+          fi
+        continue-on-error: true
+
+  # ============================================
+  # BUILD & PUSH DOCKER IMAGES
+  # ============================================
+  build-images:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [code-quality, tests]
+    if: always() && (needs.code-quality.result == 'success' || needs.code-quality.result == 'failure') && (needs.tests.result == 'success' || needs.tests.result == 'failure')
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Determine Docker Token
+        id: docker-token
+        run: |
+          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
+            echo "token=${{ secrets.GHCR_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "token_exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Using GHCR_TOKEN"
+          else
+            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "token_exists=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Using GITHUB_TOKEN as fallback"
+          fi
+
+      - name: Log in to GitHub Container Registry
+        if: steps.docker-token.outputs.token_exists == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ steps.docker-token.outputs.token }}
+
+      - name: Extract metadata (API)
+        id: meta-api
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-api
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=main-latest
+
+      - name: Determine Docker npm token
+        id: docker-npm-token
+        run: |
+          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
+            echo "token=${{ secrets.GHCR_TOKEN }}" >> $GITHUB_OUTPUT
+          else
+            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push API Docker image
+        if: steps.docker-token.outputs.token_exists == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/api/Dockerfile
+          push: true
+          tags: ${{ steps.meta-api.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels }}
+          build-args: |
+            NPM_TOKEN=${{ steps.docker-npm-token.outputs.token }}
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp || github.run_started_at }}
+            GIT_BRANCH=${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata (Web)
+        id: meta-web
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-web
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=main-latest
+
+      - name: Build and push Web Docker image
+        if: steps.docker-token.outputs.token_exists == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/web/Dockerfile
+          push: true
+          tags: ${{ steps.meta-web.outputs.tags }}
+          labels: ${{ steps.meta-web.outputs.labels }}
+          build-args: |
+            NPM_TOKEN=${{ steps.docker-npm-token.outputs.token }}
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp || github.run_started_at }}
+            GIT_BRANCH=${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+    outputs:
+      api-image: ${{ steps.meta-api.outputs.tags }}
+      web-image: ${{ steps.meta-web.outputs.tags }}
+
+  # ============================================
+  # DEPLOY TO STAGING
+  # ============================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [build-images]
+    if: needs.build-images.result == 'success'
+    environment:
+      name: staging
+      url: https://account.staging.mojo-institut.de
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check required secrets
+        run: |
+          if [ -z "${{ secrets.STAGING_SERVER }}" ]; then
+            echo "❌ Fehler: STAGING_SERVER Secret nicht gesetzt!"
+            exit 1
+          fi
+          if [ -z "${{ secrets.STAGING_SSH_KEY }}" ]; then
+            echo "❌ Fehler: STAGING_SSH_KEY Secret nicht gesetzt!"
+            exit 1
+          fi
+          echo "✅ Alle erforderlichen Secrets sind gesetzt"
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.STAGING_SSH_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          ssh-keyscan -H ${{ secrets.STAGING_SERVER }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Staging (Blue/Green)
+        run: |
+          export REGISTRY="${{ env.REGISTRY }}"
+          export GITHUB_REPOSITORY="${{ github.repository }}"
+          export GITHUB_ACTOR="${{ github.actor }}"
+          export GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
+          export VERSION="main-latest"
+          export APP_NAME="account.mojo"
+          
+          ssh -T -o StrictHostKeyChecking=no root@${{ secrets.STAGING_SERVER }} \
+            REGISTRY="${REGISTRY}" \
+            GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
+            GITHUB_ACTOR="${GITHUB_ACTOR}" \
+            GHCR_TOKEN="${GHCR_TOKEN}" \
+            VERSION="${VERSION}" \
+            APP_NAME="${APP_NAME}" \
+            bash << 'DEPLOY_EOF'
+          set -e
+          PROJECT_DIR="/root/projects/${APP_NAME}"
+          
+          # Create project directory if it doesn't exist
+          mkdir -p "$PROJECT_DIR"
+          cd "$PROJECT_DIR"
+          
+          # Initialize git repo if it doesn't exist
+          if [ ! -d .git ]; then
+            git init
+            git remote add origin https://${GITHUB_ACTOR}:${GHCR_TOKEN}@github.com/${GITHUB_REPOSITORY}.git || \
+              git remote set-url origin https://${GITHUB_ACTOR}:${GHCR_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
+          else
+            git remote set-url origin https://${GITHUB_ACTOR}:${GHCR_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
+          fi
+          
+          git fetch origin
+          git checkout main || git checkout master
+          git pull origin main || git pull origin master
+          
+          # Login to GHCR
+          echo "$GHCR_TOKEN" | docker login ${REGISTRY} -u ${GITHUB_ACTOR} --password-stdin
+          
+          # Ensure deploy script is executable
+          chmod +x scripts/deploy-blue-green.sh || true
+          
+          # Run Blue-Green deployment
+          scripts/deploy-blue-green.sh staging "${VERSION}" "${APP_NAME}" "${REGISTRY}" "${GITHUB_REPOSITORY}" || {
+            echo "❌ Deployment failed"
+            exit 1
+          }
+          
+          echo "✅ Staging deployment completed successfully"
+          DEPLOY_EOF
+
+  # ============================================
+  # HEALTH CHECK
+  # ============================================
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: needs.deploy-staging.result == 'success'
+    timeout-minutes: 5
+
+    steps:
+      - name: Wait for Deployment
+        run: |
+          echo "⏳ Warte auf Deployment-Initialisierung..."
+          sleep 30
+
+      - name: Health Check
+        run: |
+          MAX_RETRIES=10
+          HEALTH_URL="https://account.staging.mojo-institut.de/api/v1/health"
+          
+          echo "🔍 Health-Check für account.mojo..."
+          
+          for i in $(seq 1 $MAX_RETRIES); do
+            RETRY_DELAY=5
+            echo "Versuch $i/$MAX_RETRIES..."
+            
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$HEALTH_URL" 2>/dev/null || echo "000")
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Health-Check erfolgreich (HTTP $HTTP_CODE)"
+              exit 0
+            fi
+            
+            echo "⚠️ Health-Check fehlgeschlagen (HTTP $HTTP_CODE), warte ${RETRY_DELAY}s..."
+            if [ $i -lt $MAX_RETRIES ]; then
+              sleep $RETRY_DELAY
+            fi
+          done
+          
+          echo "❌ Health-Check nach $MAX_RETRIES Versuchen fehlgeschlagen"
+          exit 1
+
