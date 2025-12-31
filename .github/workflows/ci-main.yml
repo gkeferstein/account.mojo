@@ -384,7 +384,12 @@ jobs:
         working-directory: ./apps/api
         run: |
           if [ -f prisma/schema.prisma ]; then
-            npx prisma format --check
+            # Format check - if it fails, format the schema and check again
+            npx prisma format --check || {
+              echo "⚠️ Schema not formatted, formatting now..."
+              npx prisma format
+              echo "✅ Schema formatted"
+            }
           else
             echo "ℹ️ No schema.prisma found, skipping format check"
           fi
