@@ -58,7 +58,7 @@ services:
       - "traefik.http.routers.accounts-api-staging.service=accounts-api-staging"
       - "traefik.http.routers.accounts-api-staging.priority=10"
       # Staging Health Route: account.staging.mojo-institut.de/health
-      - "traefik.http.routers.accounts-health-staging.rule=Host(`account.staging.mojo-institut.de`) && Path(`/health`) || Path(`/api/v1/health`)"
+      - "traefik.http.routers.accounts-health-staging.rule=Host(`account.staging.mojo-institut.de`) && (Path(`/health`) || Path(`/api/v1/health`))"
       - "traefik.http.routers.accounts-health-staging.entrypoints=websecure"
       - "traefik.http.routers.accounts-health-staging.tls.certresolver=letsencrypt"
       - "traefik.http.routers.accounts-health-staging.middlewares=staging-basicauth,staging-headers"
