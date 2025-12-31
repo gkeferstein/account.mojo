@@ -10,7 +10,8 @@ RUN cat package.json.original | \
     sed 's/"workspace:\*"/"*"/g' | \
     sed 's/"workspace:\^[^"]*"/"*"/g' | \
     sed 's/"workspace:[^"]*"/"*"/g' > package.json && \
-    echo "✅ Cleaned package.json (removed workspace: references)"
+    echo "✅ Cleaned package.json (removed workspace: references)" && \
+    cat package.json
 
 # Create .npmrc from build arg (token passed from CI)
 ARG NPM_TOKEN
@@ -25,8 +26,11 @@ RUN if [ -n "$NPM_TOKEN" ]; then \
     fi
 
 # Install dependencies (including @gkeferstein/design from GitHub Packages)
+# Note: Do NOT copy package-lock.json as it contains workspace: references
 RUN echo "🔍 Starting npm install..." && \
-    npm install --legacy-peer-deps 2>&1 | tee /tmp/npm-install.log || { \
+    echo "📦 Package.json content:" && \
+    cat package.json | head -20 && \
+    npm install --legacy-peer-deps --no-package-lock 2>&1 | tee /tmp/npm-install.log || { \
       echo "❌ npm install failed. Log:"; \
       cat /tmp/npm-install.log; \
       exit 1; \
