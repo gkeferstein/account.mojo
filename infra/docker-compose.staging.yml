@@ -94,7 +94,7 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=mojo-network"
       # Staging Frontend Route: account.staging.mojo-institut.de (exclude /api paths)
-      - "traefik.http.routers.accounts-web-staging.rule=Host(`account.staging.mojo-institut.de`) && !PathPrefix(`/api`) && !Path(`/health`)"
+      - "traefik.http.routers.accounts-web-staging.rule=Host(`account.staging.mojo-institut.de`) && !PathPrefix(`/api`)"
       - "traefik.http.routers.accounts-web-staging.entrypoints=websecure"
       - "traefik.http.routers.accounts-web-staging.tls.certresolver=letsencrypt"
       - "traefik.http.routers.accounts-web-staging.tls=true"
