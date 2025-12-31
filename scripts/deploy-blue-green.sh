@@ -8,7 +8,7 @@ set -e
 VERSION=${1:-latest}
 ENVIRONMENT=${2:-production}
 REGISTRY=${REGISTRY:-ghcr.io}
-REPOSITORY=${GITHUB_REPOSITORY:-gkeferstein/account.mojo}
+REPOSITORY=${GITHUB_REPOSITORY:-gkeferstein/accounts.mojo}
 
 API_IMAGE="${REGISTRY}/${REPOSITORY}-api:${VERSION}"
 WEB_IMAGE="${REGISTRY}/${REPOSITORY}-web:${VERSION}"
@@ -30,12 +30,16 @@ if [ "$ENVIRONMENT" = "staging" ]; then
     COMPOSE_CMD="docker-compose"
   fi
   
-  # Step 1: Pull new images
+  # Step 1: Ensure network exists
+  echo "🌐 Ensuring mojo-network exists..."
+  docker network inspect mojo-network >/dev/null 2>&1 || docker network create mojo-network || true
+  
+  # Step 2: Pull new images
   echo "📥 Pulling new images..."
   docker pull "${API_IMAGE}" || { echo "❌ Failed to pull API image"; exit 1; }
   docker pull "${WEB_IMAGE}" || { echo "❌ Failed to pull Web image"; exit 1; }
   
-  # Step 2: Stop existing containers (if any)
+  # Step 3: Stop existing containers (if any)
   echo "🛑 Stopping existing staging containers..."
   ${COMPOSE_CMD} -f infra/docker-compose.staging.yml down || true
   
@@ -50,7 +54,7 @@ if [ "$ENVIRONMENT" = "staging" ]; then
     exit 1
   }
   
-  # Step 4: Wait for health
+  # Step 5: Wait for health
   echo "⏳ Waiting for services to be healthy..."
   MAX_ATTEMPTS=60
   ATTEMPT=1
