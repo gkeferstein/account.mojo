@@ -54,6 +54,7 @@ services:
       - "traefik.http.routers.accounts-api-staging.rule=Host(`account.staging.mojo-institut.de`) && PathPrefix(`/api`)"
       - "traefik.http.routers.accounts-api-staging.entrypoints=websecure"
       - "traefik.http.routers.accounts-api-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.accounts-api-staging.tls=true"
       - "traefik.http.routers.accounts-api-staging.middlewares=staging-basicauth,staging-headers"
       - "traefik.http.routers.accounts-api-staging.service=accounts-api-staging"
       - "traefik.http.routers.accounts-api-staging.priority=10"
