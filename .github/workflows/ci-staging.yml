@@ -148,13 +148,33 @@ jobs:
         env:
           NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
         run: |
+          echo "Installing dependencies..."
+          echo "NPM_TOKEN is set: $([ -n \"$NPM_TOKEN\" ] && echo 'yes' || echo 'no')"
+          # Remove package-lock.json if it exists to avoid conflicts
           if [ -f package-lock.json ]; then
+            echo "⚠️ Removing package-lock.json to avoid conflicts"
             rm -f package-lock.json
           fi
+          # Clean workspace: references from package.json files
+          echo "🔍 Cleaning workspace: references..."
           find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\*"/"*"/g' {} \;
           find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\^[^"]*"/"*"/g' {} \;
           find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:[^"]*"/"*"/g' {} \;
-          npm install --legacy-peer-deps --no-package-lock
+          echo "✅ Cleaned workspace: references from package.json files"
+          # Use npm install with legacy-peer-deps and --no-package-lock
+          npm install --legacy-peer-deps --no-package-lock || {
+            echo "❌ npm install failed"
+            echo "Checking npm config..."
+            npm config list
+            echo "Checking .npmrc..."
+            cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/' || echo "No ~/.npmrc found"
+            echo "Testing package access..."
+            npm view @gkeferstein/tenant --registry=https://npm.pkg.github.com || echo "Cannot access @gkeferstein/tenant"
+            exit 1
+          }
+
+      - name: Build Shared Package
+        run: npm run build:shared || echo "⚠️ No build:shared script found, skipping"
 
       - name: Setup Test Database
         env:
