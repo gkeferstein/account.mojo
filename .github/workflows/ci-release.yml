@@ -1,9 +1,9 @@
 name: CI - Release Pipeline (Tag v0.x.x)
 
 on:
-  # Trigger wenn Main Pipeline erfolgreich abgeschlossen wurde
+  # Trigger wenn Staging Pipeline erfolgreich abgeschlossen wurde
   workflow_run:
-    workflows: ["CI - Main Branch (Fast Pipeline)"]
+    workflows: ["CI - Staging Deployment"]
     types:
       - completed
     branches:
@@ -16,7 +16,7 @@ on:
         required: true
         type: string
 
-# Release-Pipeline startet nur nach erfolgreicher Main-Pipeline
+# Release-Pipeline startet nur nach erfolgreicher Staging-Pipeline
 # Prüfung erfolgt im Job: check-tag-push
 
 permissions:
