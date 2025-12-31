@@ -50,6 +50,7 @@ RUN if [ -n "$NPM_TOKEN" ]; then \
 # Entferne lokale dependencies und installiere den Rest
 RUN sed -i '/"@accounts\/shared"/d' package.json && \
     sed -i '/"@mojo\/tenant"/d' package.json && \
+    sed -i '/"@gkeferstein\/tenant"/d' package.json && \
     npm install --legacy-peer-deps
 
 # Generate Prisma Client
