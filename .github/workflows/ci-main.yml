@@ -12,6 +12,11 @@ on:
       - 'scripts/**'
       - '.github/**'
 
+# Prevent cancellation of in-progress runs when new commits are pushed
+concurrency:
+  group: ci-main-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
   packages: read
@@ -99,46 +104,41 @@ jobs:
         run: |
           cd apps/api
           if [ -f tsconfig.json ]; then
-            npx tsc --noEmit || echo "⚠️ API TypeScript errors found"
+            npx tsc --noEmit
           else
             echo "ℹ️ No tsconfig.json found in apps/api, skipping"
           fi
-        continue-on-error: true
 
       - name: TypeScript Compile Check (Web)
         run: |
           cd apps/web
           if [ -f tsconfig.json ]; then
-            npx tsc --noEmit || echo "⚠️ Web TypeScript errors found"
+            npx tsc --noEmit
           else
             echo "ℹ️ No tsconfig.json found in apps/web, skipping"
           fi
-        continue-on-error: true
 
       - name: ESLint (API)
         run: |
           cd apps/api
           if npm run | grep -q "lint"; then
-            npm run lint || echo "⚠️ API linting issues found"
+            npm run lint
           else
             echo "ℹ️ No lint script found in apps/api, skipping"
           fi
-        continue-on-error: true
 
       - name: ESLint (Web)
         run: |
           cd apps/web
           if npm run | grep -q "lint"; then
-            npm run lint || echo "⚠️ Web linting issues found"
+            npm run lint
           else
             echo "ℹ️ No lint script found in apps/web, skipping"
           fi
-        continue-on-error: true
 
       - name: Security Audit (High/Critical only)
         run: |
-          npm audit --audit-level=high || echo "⚠️ Security vulnerabilities found"
-        continue-on-error: true
+          npm audit --audit-level=high
 
   # ============================================
   # PARALLEL TESTS
@@ -216,11 +216,10 @@ jobs:
       - name: Run Tests
         run: |
           if npm run | grep -q "test"; then
-            npm test || echo "⚠️ Tests failed"
+            npm test
           else
             echo "ℹ️ No test script found, skipping tests"
           fi
-        continue-on-error: true
 
       - name: Upload Test Results
         if: always()
@@ -338,21 +337,19 @@ jobs:
         working-directory: ./apps/api
         run: |
           if [ -d prisma ]; then
-            npx prisma migrate status || echo "⚠️ Migration status check failed"
+            npx prisma migrate status
           else
             echo "ℹ️ No prisma directory found, skipping migration check"
           fi
-        continue-on-error: true
 
       - name: Schema Validation (Prisma format check)
         working-directory: ./apps/api
         run: |
           if [ -f prisma/schema.prisma ]; then
-            npx prisma format --check || echo "⚠️ Schema format check failed"
+            npx prisma format --check
           else
             echo "ℹ️ No schema.prisma found, skipping format check"
           fi
-        continue-on-error: true
 
   # ============================================
   # BUILD & PUSH DOCKER IMAGES
@@ -360,9 +357,9 @@ jobs:
   build-images:
     name: Build & Push Docker Images
     runs-on: ubuntu-latest
-    timeout-minutes: 2
-    needs: [code-quality, tests]
-    if: always()
+    timeout-minutes: 20
+    needs: [code-quality, tests, database-checks]
+    if: needs.code-quality.result == 'success' && needs.tests.result == 'success' && needs.database-checks.result == 'success'
     permissions:
       contents: read
       packages: write
@@ -378,7 +375,6 @@ jobs:
           path: design.mojo
           fetch-depth: 1
           token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
         id: checkout-design
 
       - name: Skip design.mojo if not available
@@ -670,5 +666,4 @@ jobs:
               <li>Database Checks: ${{ needs.database-checks.result }}</li>
               <li>Build Images: ${{ needs.build-images.result }}</li>
             </ul>
-        continue-on-error: true
 
