@@ -169,10 +169,18 @@ jobs:
         env:
           DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_accounts
         run: |
-          if npm test 2>/dev/null; then
-            echo "✅ Tests passed"
+          if npm run | grep -q "test"; then
+            npm test 2>&1 | tee /tmp/test_output.txt || {
+              if grep -q "No test files found" /tmp/test_output.txt; then
+                echo "ℹ️ No test files found, skipping tests"
+                exit 0
+              else
+                echo "⚠️ Tests failed"
+                exit 0  # Don't fail pipeline on test failures in staging
+              fi
+            }
           else
-            echo "⚠️ Tests failed or no tests configured"
+            echo "ℹ️ No test script found, skipping tests"
           fi
         continue-on-error: true
 
