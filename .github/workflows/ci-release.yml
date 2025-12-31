@@ -1,15 +1,23 @@
 name: CI - Release Pipeline (Tag v0.x.x)
 
 on:
-  push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+  # Trigger wenn Main Pipeline erfolgreich abgeschlossen wurde
+  workflow_run:
+    workflows: ["CI - Main Branch (Fast Pipeline)"]
+    types:
+      - completed
+    branches:
+      - main
+  # Fallback: Manueller Trigger mit Version
   workflow_dispatch:
     inputs:
       version:
         description: 'Version tag (e.g., v0.3.0)'
         required: true
         type: string
+
+# Release-Pipeline startet nur nach erfolgreicher Main-Pipeline
+# Prüfung erfolgt im Job: check-tag-push
 
 permissions:
   contents: read
@@ -22,12 +30,94 @@ env:
 
 jobs:
   # ============================================
+  # CHECK IF THIS IS A TAG PUSH (MUST PASS FIRST)
+  # ============================================
+  check-tag-push:
+    name: Check if Tag Push
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      is_tag_push: ${{ steps.check.outputs.is_tag_push }}
+      tag_name: ${{ steps.check.outputs.tag_name }}
+      commit_sha: ${{ steps.check.outputs.commit_sha }}
+      main_pipeline_success: ${{ steps.check.outputs.main_pipeline_success }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if workflow_run was triggered by tag push
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual trigger - use provided version
+            TAG="${{ github.event.inputs.version }}"
+            IS_TAG_PUSH="true"
+            COMMIT_SHA=$(git rev-parse HEAD)
+            MAIN_PIPELINE_SUCCESS="true"
+          else
+            # workflow_run trigger - check if the triggering commit has a tag
+            COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
+            
+            # Check if Main Pipeline was successful
+            if [ "${{ github.event.workflow_run.conclusion }}" == "success" ]; then
+              MAIN_PIPELINE_SUCCESS="true"
+            else
+              MAIN_PIPELINE_SUCCESS="false"
+            fi
+            
+            # Get all tags for this commit
+            TAGS=$(git tag --points-at "$COMMIT_SHA" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || echo "")
+            
+            if [ -n "$TAGS" ]; then
+              # Get the latest tag (in case multiple tags point to same commit)
+              TAG=$(echo "$TAGS" | sort -V | tail -1)
+              IS_TAG_PUSH="true"
+            else
+              TAG=""
+              IS_TAG_PUSH="false"
+            fi
+          fi
+          
+          echo "is_tag_push=$IS_TAG_PUSH" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG" >> $GITHUB_OUTPUT
+          echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "main_pipeline_success=$MAIN_PIPELINE_SUCCESS" >> $GITHUB_OUTPUT
+          
+          echo "📦 Commit SHA: $COMMIT_SHA"
+          echo "🏷️  Tag: $TAG"
+          echo "✅ Is Tag Push: $IS_TAG_PUSH"
+          echo "✅ Main Pipeline Success: $MAIN_PIPELINE_SUCCESS"
+
+      - name: Validate Tag Push
+        if: steps.check.outputs.is_tag_push == 'false' && github.event_name == 'workflow_run'
+        run: |
+          echo "ℹ️ This workflow_run was not triggered by a tag push."
+          echo "Commit: ${{ steps.check.outputs.commit_sha }}"
+          echo "Skipping release pipeline (this is expected for non-tag commits)."
+          exit 0
+
+      - name: Validate Main Pipeline Success
+        if: steps.check.outputs.main_pipeline_success == 'false'
+        run: |
+          echo "❌ Main Pipeline was not successful."
+          echo "Conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "Skipping release pipeline."
+          exit 0
+
+  # ============================================
   # PREPARE RELEASE
   # ============================================
   prepare-release:
+    needs: check-tag-push
     name: Prepare Release
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Nur ausführen wenn es ein Tag-Push war UND Main Pipeline erfolgreich war
+    if: |
+      needs.check-tag-push.outputs.is_tag_push == 'true' &&
+      needs.check-tag-push.outputs.main_pipeline_success == 'true'
     outputs:
       version: ${{ steps.version.outputs.version }}
       version_short: ${{ steps.version.outputs.version_short }}
@@ -35,6 +125,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.check-tag-push.outputs.commit_sha }}
           fetch-depth: 0
 
       - name: Extract Version
@@ -43,7 +134,7 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             VERSION="${{ github.event.inputs.version }}"
           else
-            VERSION="${GITHUB_REF#refs/tags/}"
+            VERSION="${{ needs.check-tag-push.outputs.tag_name }}"
           fi
           VERSION_SHORT=$(echo "$VERSION" | sed 's/^v//')
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
@@ -66,6 +157,10 @@ jobs:
     name: Strict Code Quality Checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    needs: check-tag-push
+    if: |
+      needs.check-tag-push.outputs.is_tag_push == 'true' &&
+      needs.check-tag-push.outputs.main_pipeline_success == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -153,6 +248,10 @@ jobs:
     name: Tests (Comprehensive)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: check-tag-push
+    if: |
+      needs.check-tag-push.outputs.is_tag_push == 'true' &&
+      needs.check-tag-push.outputs.main_pipeline_success == 'true'
     services:
       postgres:
         image: postgres:16-alpine
@@ -262,6 +361,10 @@ jobs:
     name: Security Scans
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: check-tag-push
+    if: |
+      needs.check-tag-push.outputs.is_tag_push == 'true' &&
+      needs.check-tag-push.outputs.main_pipeline_success == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -340,6 +443,10 @@ jobs:
     name: Database Migration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: check-tag-push
+    if: |
+      needs.check-tag-push.outputs.is_tag_push == 'true' &&
+      needs.check-tag-push.outputs.main_pipeline_success == 'true'
     services:
       postgres:
         image: postgres:16-alpine
@@ -456,8 +563,10 @@ jobs:
     name: Build & Push Release Images
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [prepare-release, code-quality-strict, tests-comprehensive]
+    needs: [check-tag-push, prepare-release, code-quality-strict, tests-comprehensive]
     if: |
+      needs.check-tag-push.outputs.is_tag_push == 'true' &&
+      needs.check-tag-push.outputs.main_pipeline_success == 'true' &&
       needs.prepare-release.result == 'success' &&
       (needs.code-quality-strict.result == 'success' || needs.code-quality-strict.result == 'failure') &&
       (needs.tests-comprehensive.result == 'success' || needs.tests-comprehensive.result == 'failure')
@@ -639,8 +748,11 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [prepare-release, build-images-release]
-    if: needs.build-images-release.result == 'success'
+    needs: [check-tag-push, prepare-release, build-images-release]
+    if: |
+      needs.check-tag-push.outputs.is_tag_push == 'true' &&
+      needs.check-tag-push.outputs.main_pipeline_success == 'true' &&
+      needs.build-images-release.result == 'success'
     permissions:
       contents: write
 
@@ -706,7 +818,7 @@ jobs:
   # DEPLOYMENT TO PRODUCTION
   # ============================================
   deploy-production:
-    name: Deploy to Production
+    name: Deploy to Production (Blue-Green)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [build-images-release, create-release]
@@ -725,15 +837,15 @@ jobs:
         run: |
           ssh-keyscan -H ${{ secrets.DEPLOY_SERVER }} >> ~/.ssh/known_hosts
 
-      - name: Deploy to Production Server
+      - name: Blue-Green Deployment
+        id: deploy
         run: |
           export REGISTRY="${{ env.REGISTRY }}"
           export GITHUB_REPOSITORY="${{ github.repository }}"
           export GITHUB_ACTOR="${{ github.actor }}"
           export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
           export VERSION="${{ needs.prepare-release.outputs.version }}"
-          export API_IMAGE_NAME="${REGISTRY}/${GITHUB_REPOSITORY}-api:${VERSION}"
-          export WEB_IMAGE_NAME="${REGISTRY}/${GITHUB_REPOSITORY}-web:${VERSION}"
+          export VERSION_SHORT="${{ needs.prepare-release.outputs.version_short }}"
           
           ssh -T -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER }} \
             REGISTRY="${REGISTRY}" \
@@ -741,89 +853,94 @@ jobs:
             GITHUB_ACTOR="${GITHUB_ACTOR}" \
             GITHUB_TOKEN="${GITHUB_TOKEN}" \
             VERSION="${VERSION}" \
-            API_IMAGE_NAME="${API_IMAGE_NAME}" \
-            WEB_IMAGE_NAME="${WEB_IMAGE_NAME}" \
+            VERSION_SHORT="${VERSION_SHORT}" \
+            GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}" \
             bash << 'DEPLOY_EOF'
           set -e
           PROJECT_DIR="/root/projects/accounts.mojo"
           
           cd "$PROJECT_DIR" || exit 1
           git fetch origin
-          git checkout $VERSION
+          git pull origin main || git pull origin production || true
           
-          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
-            echo "${{ secrets.GHCR_TOKEN }}" | docker login ${REGISTRY} -u ${GITHUB_ACTOR} --password-stdin
+          # Login to container registry
+          echo "${GHCR_TOKEN}" | docker login ${REGISTRY} -u ${GITHUB_ACTOR} --password-stdin
+          
+          # Ensure deploy script is executable
+          chmod +x scripts/deploy-blue-green.sh || true
+          
+          # Run Blue-Green deployment
+          export API_IMAGE="${REGISTRY}/${GITHUB_REPOSITORY}-api:${VERSION_SHORT}"
+          export WEB_IMAGE="${REGISTRY}/${GITHUB_REPOSITORY}-web:${VERSION_SHORT}"
+          
+          if [ -f "scripts/deploy-blue-green.sh" ]; then
+            bash scripts/deploy-blue-green.sh "${VERSION_SHORT}" production || {
+              echo "❌ Deployment failed - rollback triggered"
+              exit 1
+            }
           else
-            echo "❌ GHCR_TOKEN is required for release deployment"
-            exit 1
-          fi
-          
-          if docker compose version >/dev/null 2>&1; then
-            COMPOSE_CMD="docker compose"
-          else
-            COMPOSE_CMD="docker-compose"
-          fi
-          
-          run_compose() {
-            eval "$COMPOSE_CMD $*"
-          }
-          
-          # Database Backup before migration
-          echo "📦 Creating database backup..."
-          docker exec accounts-db pg_dump -U accounts accounts_db > backup_$(date +%Y%m%d_%H%M%S).sql || echo "⚠️ Backup failed but continuing"
-          
-          # Pull new images
-          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
-            docker pull "${API_IMAGE_NAME}" || exit 1
-            docker pull "${WEB_IMAGE_NAME}" || exit 1
-          else
-            echo "❌ GHCR_TOKEN is required for release deployment"
-            exit 1
-          fi
-          
-          # Stop old containers
-          echo "🔄 Stopping old containers..."
-          run_compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml down --remove-orphans || true
-          
-          # Start new containers with new image version
-          echo "🟢 Starting new containers with version $VERSION..."
-          run_compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml up -d db api
-          
-          # Wait for API to be healthy
-          MAX_ATTEMPTS=60
-          ATTEMPT=1
-          while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
-            HEALTH=$(docker inspect accounts-api --format='{{.State.Health.Status}}' 2>/dev/null || echo "unhealthy")
-            if [ "$HEALTH" = "healthy" ]; then
-              echo "✅ API service healthy"
-              break
+            echo "⚠️ deploy-blue-green.sh not found, using fallback deployment..."
+            # Fallback to simple deployment
+            docker pull "${API_IMAGE}" || exit 1
+            docker pull "${WEB_IMAGE}" || exit 1
+            
+            if docker compose version >/dev/null 2>&1; then
+              COMPOSE_CMD="docker compose"
+            else
+              COMPOSE_CMD="docker-compose"
             fi
-            if [ "$ATTEMPT" -eq "$MAX_ATTEMPTS" ]; then
-              echo "❌ API service not healthy, rolling back..."
+            
+            run_compose() {
+              eval "$COMPOSE_CMD $*"
+            }
+            
+            # Database Backup before migration
+            echo "📦 Creating database backup..."
+            docker exec accounts-db pg_dump -U accounts accounts_db > backup_$(date +%Y%m%d_%H%M%S).sql || echo "⚠️ Backup failed but continuing"
+            
+            # Stop old containers
+            echo "🔄 Stopping old containers..."
+            run_compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml down --remove-orphans || true
+            
+            # Start new containers with new image version
+            echo "🟢 Starting new containers with version $VERSION_SHORT..."
+            run_compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml up -d db api
+            
+            # Wait for API to be healthy
+            MAX_ATTEMPTS=60
+            ATTEMPT=1
+            while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
+              HEALTH=$(docker inspect accounts-api --format='{{.State.Health.Status}}' 2>/dev/null || echo "unhealthy")
+              if [ "$HEALTH" = "healthy" ]; then
+                echo "✅ API service healthy"
+                break
+              fi
+              if [ "$ATTEMPT" -eq "$MAX_ATTEMPTS" ]; then
+                echo "❌ API service not healthy, rolling back..."
+                run_compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml down --remove-orphans
+                exit 1
+              fi
+              sleep 2
+              ATTEMPT=$((ATTEMPT + 1))
+            done
+            
+            # Run migrations
+            echo "🔄 Running database migrations..."
+            docker exec accounts-api npx prisma migrate deploy || {
+              echo "❌ Migration failed, rolling back..."
               run_compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml down --remove-orphans
               exit 1
-            fi
-            sleep 2
-            ATTEMPT=$((ATTEMPT + 1))
-          done
+            }
+            
+            # Start web service
+            echo "🔄 Starting web service..."
+            run_compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml up -d web
+          fi
           
-          # Run migrations
-          echo "🔄 Running database migrations..."
-          docker exec accounts-api npx prisma migrate deploy || {
-            echo "❌ Migration failed, rolling back..."
-            run_compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml down --remove-orphans
-            exit 1
-          }
-          
-          # Start web service
-          echo "🔄 Starting web service..."
-          run_compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml up -d web
-          
-          # Clean up old images
-          docker image prune -f || true
-          
-          echo "✅ Deployment completed"
+          echo "✅ Deployment completed successfully"
           DEPLOY_EOF
+          
+          echo "deployment_status=success" >> $GITHUB_OUTPUT
 
       - name: Health Check
         run: |
