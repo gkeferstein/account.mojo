@@ -201,7 +201,7 @@ jobs:
           if [ -f package-lock.json ]; then
             rm -f package-lock.json
           fi
-          npm install --legacy-peer-deps
+          npm install --legacy-peer-deps --no-package-lock
 
       - name: Build Shared Package
         run: npm run build:shared
@@ -306,7 +306,7 @@ jobs:
           if [ -f package-lock.json ]; then
             rm -f package-lock.json
           fi
-          npm install --legacy-peer-deps
+          npm install --legacy-peer-deps --no-package-lock
 
       - name: Build Shared Package
         run: npm run build:shared
@@ -405,7 +405,7 @@ jobs:
           if [ -f package-lock.json ]; then
             rm -f package-lock.json
           fi
-          npm install --legacy-peer-deps
+          npm install --legacy-peer-deps --no-package-lock
 
       - name: npm Audit (Detailed)
         run: |
@@ -501,7 +501,7 @@ jobs:
           if [ -f package-lock.json ]; then
             rm -f package-lock.json
           fi
-          npm install --legacy-peer-deps
+          npm install --legacy-peer-deps --no-package-lock
 
       - name: Setup Test Database
         env:
