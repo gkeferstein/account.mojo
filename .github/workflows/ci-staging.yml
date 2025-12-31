@@ -440,7 +440,7 @@ jobs:
           
           # Run Blue-Green deployment
           # Script signature: deploy-blue-green.sh <version> <environment>
-          scripts/deploy-blue-green.sh "${VERSION_SHORT}" staging || {
+          scripts/deploy-blue-green.sh "${VERSION}" staging || {
             echo "❌ Deployment failed"
             exit 1
           }
