@@ -435,26 +435,12 @@ jobs:
           echo "$GHCR_TOKEN" | docker login ${REGISTRY} -u ${GITHUB_ACTOR} --password-stdin
           
           # Ensure deploy script is executable
-          if [ -f scripts/deploy-blue-green.sh ]; then
-            chmod +x scripts/deploy-blue-green.sh
-            DEPLOY_SCRIPT="./scripts/deploy-blue-green.sh"
-          elif [ -f /root/scripts/deploy-blue-green.sh ]; then
-            chmod +x /root/scripts/deploy-blue-green.sh
-            DEPLOY_SCRIPT="/root/scripts/deploy-blue-green.sh"
-          else
-            echo "❌ deploy-blue-green.sh not found!"
-            exit 1
-          fi
-          
-          echo "📝 Using deploy script: ${DEPLOY_SCRIPT}"
+          chmod +x /root/scripts/deploy-blue-green.sh || true
           
           # Run Blue-Green deployment
-          # Script signature: deploy-blue-green.sh <version> <environment>
-          ${DEPLOY_SCRIPT} "${VERSION}" staging || {
+          # Script signature: deploy-blue-green.sh <environment> <version> <app-name> [registry] [github-repo]
+          /root/scripts/deploy-blue-green.sh staging "${VERSION}" "${APP_NAME}" "${REGISTRY}" "${GITHUB_REPOSITORY}" || {
             echo "❌ Deployment failed"
-            echo "Checking script location..."
-            ls -la scripts/ || echo "scripts/ not found"
-            ls -la /root/scripts/ | grep deploy || echo "/root/scripts/deploy not found"
             exit 1
           }
           
