@@ -57,13 +57,6 @@ services:
       - "traefik.http.routers.accounts-api-staging.middlewares=staging-basicauth,staging-headers"
       - "traefik.http.routers.accounts-api-staging.service=accounts-api-staging"
       - "traefik.http.routers.accounts-api-staging.priority=10"
-      # Staging Health Route: account.staging.mojo-institut.de/health
-      - "traefik.http.routers.accounts-health-staging.rule=Host(`account.staging.mojo-institut.de`) && (Path(`/health`) || Path(`/api/v1/health`))"
-      - "traefik.http.routers.accounts-health-staging.entrypoints=websecure"
-      - "traefik.http.routers.accounts-health-staging.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.accounts-health-staging.middlewares=staging-basicauth,staging-headers"
-      - "traefik.http.routers.accounts-health-staging.service=accounts-api-staging"
-      - "traefik.http.routers.accounts-health-staging.priority=20"
       # Service
       - "traefik.http.services.accounts-api-staging.loadbalancer.server.port=3001"
     healthcheck:
@@ -103,6 +96,7 @@ services:
       - "traefik.http.routers.accounts-web-staging.rule=Host(`account.staging.mojo-institut.de`) && !PathPrefix(`/api`) && !Path(`/health`)"
       - "traefik.http.routers.accounts-web-staging.entrypoints=websecure"
       - "traefik.http.routers.accounts-web-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.accounts-web-staging.tls=true"
       - "traefik.http.routers.accounts-web-staging.middlewares=staging-basicauth,staging-headers"
       - "traefik.http.routers.accounts-web-staging.service=accounts-web-staging"
       - "traefik.http.routers.accounts-web-staging.priority=1"
