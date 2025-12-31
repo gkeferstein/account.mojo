@@ -44,3 +44,4 @@ coverage/
 
 # CI trigger
 # Final CI check
+apps/web/.npmrc

@@ -6,6 +6,7 @@
  * Like martial arts belts - from "hanging in the ropes" to vital entrepreneur
  */
 
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { motion } from 'framer-motion';
 import { 
   Check, 
@@ -137,7 +138,7 @@ const USER_PROGRESS = {
   completedMilestones: ['le-1', 'le-2', 'le-3', 'le-4', 'le-5', 'le-6', 'ca-1', 'ca-2'],
 };
 
-export default function JourneyPage() {
+function JourneyContent() {
   const [selectedStage, setSelectedStage] = useState<number | null>(null);
   const [hoveredStage, setHoveredStage] = useState<number | null>(null);
 
@@ -490,6 +491,14 @@ export default function JourneyPage() {
         </div>
       </motion.div>
     </div>
+  );
+}
+
+export default function JourneyPage() {
+  return (
+    <DashboardLayout>
+      <JourneyContent />
+    </DashboardLayout>
   );
 }
 
