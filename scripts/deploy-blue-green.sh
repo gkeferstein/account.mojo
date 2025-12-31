@@ -43,14 +43,30 @@ if [ "$ENVIRONMENT" = "staging" ]; then
   echo "🛑 Stopping existing staging containers..."
   ${COMPOSE_CMD} -f infra/docker-compose.staging.yml down || true
   
-  # Step 3: Deploy using staging compose file
+  # Step 4: Deploy using staging compose file
   echo "🔄 Deploying to staging..."
+  echo "   API Image: ${API_IMAGE}"
+  echo "   Web Image: ${WEB_IMAGE}"
   export API_IMAGE="${API_IMAGE}"
   export WEB_IMAGE="${WEB_IMAGE}"
+  
+  # Check if compose file exists
+  if [ ! -f infra/docker-compose.staging.yml ]; then
+    echo "❌ docker-compose.staging.yml not found!"
+    echo "   Current directory: $(pwd)"
+    echo "   Files in infra/:"
+    ls -la infra/ || echo "   infra/ directory not found"
+    exit 1
+  fi
+  
   ${COMPOSE_CMD} -f infra/docker-compose.staging.yml up -d || {
     echo "❌ Deployment failed"
     echo "Checking logs..."
     ${COMPOSE_CMD} -f infra/docker-compose.staging.yml logs --tail=50 || true
+    echo "Checking container status..."
+    docker ps -a | grep accounts || true
+    echo "Checking docker-compose config..."
+    ${COMPOSE_CMD} -f infra/docker-compose.staging.yml config || true
     exit 1
   }
   
