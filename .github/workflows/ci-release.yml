@@ -832,19 +832,19 @@ jobs:
       - name: Check SSH Secret
         id: check-ssh
         run: |
-          if [ -z "${{ secrets.PROD_SSH_KEY }}" ]; then
+          if [ -z "${{ secrets.PROD_SERVER_SSH_KEY }}" ]; then
             echo "ssh_available=false" >> $GITHUB_OUTPUT
-            echo "⚠️ PROD_SSH_KEY secret not found"
+            echo "⚠️ PROD_SERVER_SSH_KEY secret not found"
           else
             echo "ssh_available=true" >> $GITHUB_OUTPUT
-            echo "✅ PROD_SSH_KEY secret found"
+            echo "✅ PROD_SERVER_SSH_KEY secret found"
           fi
 
       - name: Setup SSH
         if: steps.check-ssh.outputs.ssh_available == 'true'
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.PROD_SSH_KEY }}
+          ssh-private-key: ${{ secrets.PROD_SERVER_SSH_KEY }}
 
       - name: Add server to known hosts
         if: steps.check-ssh.outputs.ssh_available == 'true'
@@ -972,9 +972,47 @@ jobs:
       - name: Deployment Skipped
         if: steps.check-ssh.outputs.ssh_available == 'false'
         run: |
-          echo "⚠️ Deployment skipped - PROD_SSH_KEY secret not configured"
-          echo "Please configure PROD_SSH_KEY and PROD_SERVER_HOST secrets in the production environment"
-          exit 0
+          echo "⚠️ Deployment skipped - PROD_SERVER_SSH_KEY secret not configured"
+          echo "Please configure PROD_SERVER_SSH_KEY and PROD_SERVER_HOST secrets in the production environment"
+          exit 1
+
+      - name: Final Health Check (Critical)
+        if: steps.check-ssh.outputs.ssh_available == 'true' && steps.deploy.outcome == 'success'
+        run: |
+          echo "🔍 Performing final health check on production..."
+          MAX_RETRIES=10
+          RETRY_DELAY=30
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES..."
+            
+            # Check API health endpoint
+            API_HEALTH=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 https://account.mojo-institut.de/api/v1/health || echo "000")
+            
+            # Check frontend
+            FRONTEND_HEALTH=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 https://account.mojo-institut.de/ || echo "000")
+            
+            echo "  API Health: $API_HEALTH"
+            echo "  Frontend Health: $FRONTEND_HEALTH"
+            
+            if [ "$API_HEALTH" = "200" ] && [ "$FRONTEND_HEALTH" = "200" ]; then
+              echo "✅ Production is healthy and reachable!"
+              exit 0
+            fi
+            
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              echo "⏳ Waiting ${RETRY_DELAY}s before retry..."
+              sleep $RETRY_DELAY
+            fi
+          done
+          
+          echo "❌ Production health check failed after $MAX_RETRIES attempts"
+          echo "   API returned: $API_HEALTH"
+          echo "   Frontend returned: $FRONTEND_HEALTH"
+          echo "   Site is not reachable at https://account.mojo-institut.de/"
+          exit 1
 
   # ============================================
   # NOTIFICATIONS
