@@ -1,0 +1,128 @@
+# Docker Compose - Staging Environment
+# Domain: account.staging.mojo-institut.de
+# Basic Auth: Aktiviert (staging-basicauth Middleware)
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: accounts-db-staging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-accounts}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-accounts_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-accounts_db}
+    volumes:
+      - accounts-db-staging-data:/var/lib/postgresql/data
+    networks:
+      - mojo-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-accounts}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Fastify API Backend
+  api:
+    container_name: accounts-api-staging
+    build:
+      context: /root/projects
+      dockerfile: accounts.mojo/apps/api/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-accounts}:${POSTGRES_PASSWORD:-accounts_secret}@db:5432/${POSTGRES_DB:-accounts_db}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
+      PAYMENTS_API_URL: ${PAYMENTS_API_URL:-https://payments.mojo-institut.de/api}
+      PAYMENTS_API_KEY: ${PAYMENTS_API_KEY}
+      CRM_API_URL: ${CRM_API_URL:-https://kontakte.mojo-institut.de/api}
+      CRM_API_KEY: ${CRM_API_KEY}
+      CRM_TENANT_SLUG: ${CRM_TENANT_SLUG:-mojo}
+      MOCK_EXTERNAL_SERVICES: ${MOCK_EXTERNAL_SERVICES:-false}
+      WEBHOOK_SECRET_PAYMENTS: ${WEBHOOK_SECRET_PAYMENTS}
+      WEBHOOK_SECRET_CRM: ${WEBHOOK_SECRET_CRM}
+      FRONTEND_URL: ${FRONTEND_URL:-https://account.staging.mojo-institut.de}
+    networks:
+      - mojo-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mojo-network"
+      # Staging API Route: account.staging.mojo-institut.de/api
+      - "traefik.http.routers.accounts-api-staging.rule=Host(`account.staging.mojo-institut.de`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.accounts-api-staging.entrypoints=websecure"
+      - "traefik.http.routers.accounts-api-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.accounts-api-staging.middlewares=staging-basicauth,staging-headers"
+      - "traefik.http.routers.accounts-api-staging.service=accounts-api-staging"
+      - "traefik.http.routers.accounts-api-staging.priority=10"
+      # Staging Health Route: account.staging.mojo-institut.de/health
+      - "traefik.http.routers.accounts-health-staging.rule=Host(`account.staging.mojo-institut.de`) && Path(`/health`) || Path(`/api/v1/health`)"
+      - "traefik.http.routers.accounts-health-staging.entrypoints=websecure"
+      - "traefik.http.routers.accounts-health-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.accounts-health-staging.middlewares=staging-basicauth,staging-headers"
+      - "traefik.http.routers.accounts-health-staging.service=accounts-api-staging"
+      - "traefik.http.routers.accounts-health-staging.priority=20"
+      # Service
+      - "traefik.http.services.accounts-api-staging.loadbalancer.server.port=3001"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Next.js Web Frontend
+  web:
+    container_name: accounts-web-staging
+    build:
+      context: /root/projects
+      dockerfile: accounts.mojo/apps/web/Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=https://account.staging.mojo-institut.de
+        - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        - NEXT_PUBLIC_PAYMENTS_API_URL=${NEXT_PUBLIC_PAYMENTS_API_URL:-https://payments.mojo-institut.de/api}
+    environment:
+      PORT: 3020
+      NODE_ENV: staging
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+    expose:
+      - "3020"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - mojo-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=mojo-network"
+      # Staging Frontend Route: account.staging.mojo-institut.de (exclude /api paths)
+      - "traefik.http.routers.accounts-web-staging.rule=Host(`account.staging.mojo-institut.de`) && !PathPrefix(`/api`) && !Path(`/health`)"
+      - "traefik.http.routers.accounts-web-staging.entrypoints=websecure"
+      - "traefik.http.routers.accounts-web-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.accounts-web-staging.middlewares=staging-basicauth,staging-headers"
+      - "traefik.http.routers.accounts-web-staging.service=accounts-web-staging"
+      - "traefik.http.routers.accounts-web-staging.priority=1"
+      # Service
+      - "traefik.http.services.accounts-web-staging.loadbalancer.server.port=3020"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "-O", "/dev/null", "http://localhost:3020/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+networks:
+  mojo-network:
+    name: mojo-network
+    external: true
+
+volumes:
+  accounts-db-staging-data:
+    name: accounts-db-staging-data
+    driver: local
+
