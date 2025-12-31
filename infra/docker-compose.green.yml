@@ -1,0 +1,108 @@
+# ==========================================
+# Green Environment (Staging - New Version)
+# ==========================================
+# This file extends docker-compose.yml with green-specific settings for Blue-Green deployment
+# Usage: docker compose -f infra/docker-compose.yml -f infra/docker-compose.green.yml -f infra/docker-compose.prod.yml up -d
+
+services:
+  # PostgreSQL Database (shared)
+  db:
+    container_name: accounts-db-green
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-accounts}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-accounts_db}
+    volumes:
+      - accounts-db-data-green:/var/lib/postgresql/data
+    networks:
+      - mojo-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-accounts}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Fastify API Backend - GREEN (Staging/New Version)
+  api:
+    image: ${API_IMAGE:-ghcr.io/gkeferstein/account.mojo-api:latest}
+    container_name: accounts-api-green
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-accounts}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-accounts_db}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
+      PAYMENTS_API_URL: ${PAYMENTS_API_URL:-https://payments.mojo-institut.de/api}
+      PAYMENTS_API_KEY: ${PAYMENTS_API_KEY}
+      CRM_API_URL: ${CRM_API_URL:-https://kontakte.mojo-institut.de/api}
+      CRM_API_KEY: ${CRM_API_KEY}
+      CRM_TENANT_SLUG: ${CRM_TENANT_SLUG:-mojo}
+      MOCK_EXTERNAL_SERVICES: ${MOCK_EXTERNAL_SERVICES:-false}
+      WEBHOOK_SECRET_PAYMENTS: ${WEBHOOK_SECRET_PAYMENTS}
+      WEBHOOK_SECRET_CRM: ${WEBHOOK_SECRET_CRM}
+      FRONTEND_URL: ${FRONTEND_URL:-https://accounts.mojo-institut.de}
+      NODE_ENV: production
+    expose:
+      - "3001"
+    networks:
+      - mojo-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      # GREEN API Router - Staging (lower priority, will be switched to active)
+      - "traefik.http.routers.accounts-api-green.rule=Host(`accounts.mojo-institut.de`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.accounts-api-green.entrypoints=websecure"
+      - "traefik.http.routers.accounts-api-green.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.accounts-api-green.service=accounts-api-green"
+      - "traefik.http.routers.accounts-api-green.priority=10"
+      # Service
+      - "traefik.http.services.accounts-api-green.loadbalancer.server.port=3001"
+
+  # Next.js Web Frontend - GREEN (Staging/New Version)
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/gkeferstein/account.mojo-web:latest}
+    container_name: accounts-web-green
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      PORT: 3020
+      NODE_ENV: production
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://accounts.mojo-institut.de}
+      NEXT_PUBLIC_PAYMENTS_API_URL: ${NEXT_PUBLIC_PAYMENTS_API_URL:-https://payments.mojo-institut.de/api}
+    expose:
+      - "3020"
+    networks:
+      - mojo-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "-O", "/dev/null", "http://localhost:3020/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      # GREEN Web Router - Staging (lower priority, will be switched to active)
+      - "traefik.http.routers.accounts-web-green.rule=Host(`accounts.mojo-institut.de`)"
+      - "traefik.http.routers.accounts-web-green.entrypoints=websecure"
+      - "traefik.http.routers.accounts-web-green.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.accounts-web-green.service=accounts-web-green"
+      - "traefik.http.routers.accounts-web-green.priority=10"
+      # Service
+      - "traefik.http.services.accounts-web-green.loadbalancer.server.port=3020"
+
+volumes:
+  accounts-db-data-green:
+
+networks:
+  mojo-network:
+    name: mojo-network
+    external: true
+
