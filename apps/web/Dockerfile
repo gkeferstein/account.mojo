@@ -8,10 +8,10 @@ FROM base AS deps
 COPY accounts.mojo/apps/web/package.json ./
 
 # Copy .npmrc if it exists (created in CI)
-COPY accounts.mojo/.npmrc* ./.npmrc
-COPY accounts.mojo/.npmrc* /root/.npmrc
-COPY accounts.mojo/apps/web/.npmrc* ./.npmrc
-COPY accounts.mojo/apps/web/.npmrc* /root/.npmrc
+COPY accounts.mojo/.npmrc ./.npmrc
+COPY accounts.mojo/.npmrc /root/.npmrc
+COPY accounts.mojo/apps/web/.npmrc ./.npmrc
+COPY accounts.mojo/apps/web/.npmrc /root/.npmrc
 
 # Remove @mojo/design from package.json so npm install doesn't fail
 RUN sed -i '/@mojo\/design/d' package.json
