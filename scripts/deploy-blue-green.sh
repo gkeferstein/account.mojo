@@ -11,8 +11,19 @@ ENVIRONMENT=${2:-production}
 REGISTRY=${REGISTRY:-ghcr.io}
 REPOSITORY=${GITHUB_REPOSITORY:-gkeferstein/account.mojo}
 
+# Ensure REPOSITORY doesn't have leading/trailing spaces
+REPOSITORY=$(echo "${REPOSITORY}" | xargs)
+
 API_IMAGE="${REGISTRY}/${REPOSITORY}-api:${VERSION}"
 WEB_IMAGE="${REGISTRY}/${REPOSITORY}-web:${VERSION}"
+
+echo "🔍 Debug Info:"
+echo "   VERSION: ${VERSION}"
+echo "   ENVIRONMENT: ${ENVIRONMENT}"
+echo "   REGISTRY: ${REGISTRY}"
+echo "   REPOSITORY: ${REPOSITORY}"
+echo "   API_IMAGE: ${API_IMAGE}"
+echo "   WEB_IMAGE: ${WEB_IMAGE}"
 
 echo "🚀 Starting Deployment"
 echo "   Version: ${VERSION}"
