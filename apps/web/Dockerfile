@@ -7,11 +7,14 @@ FROM base AS deps
 # Copy package.json
 COPY accounts.mojo/apps/web/package.json ./
 
-# Copy .npmrc if it exists (created in CI)
-COPY accounts.mojo/.npmrc ./.npmrc
-COPY accounts.mojo/.npmrc /root/.npmrc
-COPY accounts.mojo/apps/web/.npmrc ./.npmrc
-COPY accounts.mojo/apps/web/.npmrc /root/.npmrc
+# Create .npmrc from build arg (token passed from CI)
+ARG NPM_TOKEN
+RUN if [ -n "$NPM_TOKEN" ]; then \
+      echo "@gkeferstein:registry=https://npm.pkg.github.com" > .npmrc && \
+      echo "//npm.pkg.github.com/:_authToken=$NPM_TOKEN" >> .npmrc && \
+      echo "always-auth=true" >> .npmrc && \
+      cp .npmrc /root/.npmrc; \
+    fi
 
 # Remove @mojo/design from package.json so npm install doesn't fail
 RUN sed -i '/@mojo\/design/d' package.json

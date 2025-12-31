@@ -581,10 +581,9 @@ jobs:
             GIT_COMMIT=${{ github.sha }}
             BUILD_DATE=${{ github.event.head_commit.timestamp || github.run_started_at }}
             GIT_BRANCH=${{ github.ref_name }}
+            NPM_TOKEN=${{ steps.docker-token.outputs.token }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          secrets: |
-            "npm_token=${{ steps.docker-token.outputs.token }}"
 
       - name: Sign Web Image
         continue-on-error: true
