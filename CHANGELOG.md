@@ -24,7 +24,7 @@ und dieses Projekt adhäriert zu [Semantic Versioning](https://semver.org/lang/d
 - **Caching-System** - Profile-, Billing- und Entitlement-Cache für optimale Performance
 - **RBAC Middleware** - Granulare Rollenbasierte Zugriffskontrolle
 - **Personal Organization Provisioning** - Automatische Erstellung von Personal Tenants bei User-Registrierung
-- **MOJO Design System Integration** - Verwendung von @mojo/design für konsistentes UI
+- **MOJO Design System Integration** - Verwendung von @gkeferstein/design für konsistentes UI
 - **Next.js 14 Frontend** - Moderne React-basierte Benutzeroberfläche
 - **Fastify Backend** - Hochperformante API mit TypeScript
 - **Prisma ORM** - Type-safe Datenbankzugriff mit PostgreSQL
