@@ -13,8 +13,8 @@ FROM base AS shared-builder
 WORKDIR /app/packages/shared
 COPY accounts.mojo/packages/shared/ ./
 # Copy .npmrc if it exists (created in CI)
-COPY accounts.mojo/.npmrc* ./.npmrc
-COPY accounts.mojo/.npmrc* /root/.npmrc
+COPY accounts.mojo/.npmrc ./.npmrc
+COPY accounts.mojo/.npmrc /root/.npmrc
 RUN npm install && npm run build
 
 # ===========================================
@@ -28,8 +28,8 @@ COPY accounts.mojo/apps/api/package*.json ./
 COPY accounts.mojo/apps/api/prisma ./prisma/
 
 # Copy .npmrc if it exists (created in CI)
-COPY accounts.mojo/.npmrc* ./.npmrc
-COPY accounts.mojo/.npmrc* /root/.npmrc
+COPY accounts.mojo/.npmrc ./.npmrc
+COPY accounts.mojo/.npmrc /root/.npmrc
 
 # Entferne lokale dependencies und installiere den Rest
 RUN sed -i '/"@accounts\/shared"/d' package.json && \
