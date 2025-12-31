@@ -13,11 +13,69 @@ REPOSITORY=${GITHUB_REPOSITORY:-gkeferstein/account.mojo}
 API_IMAGE="${REGISTRY}/${REPOSITORY}-api:${VERSION}"
 WEB_IMAGE="${REGISTRY}/${REPOSITORY}-web:${VERSION}"
 
-echo "🚀 Starting Blue-Green Deployment"
+echo "🚀 Starting Deployment"
 echo "   Version: ${VERSION}"
 echo "   Environment: ${ENVIRONMENT}"
 echo "   API Image: ${API_IMAGE}"
 echo "   Web Image: ${WEB_IMAGE}"
+
+# For staging, use simple deployment without blue-green
+if [ "$ENVIRONMENT" = "staging" ]; then
+  echo "📦 Deploying to Staging (simple deployment)"
+  
+  # Determine compose command
+  if docker compose version >/dev/null 2>&1; then
+    COMPOSE_CMD="docker compose"
+  else
+    COMPOSE_CMD="docker-compose"
+  fi
+  
+  # Step 1: Pull new images
+  echo "📥 Pulling new images..."
+  docker pull "${API_IMAGE}" || { echo "❌ Failed to pull API image"; exit 1; }
+  docker pull "${WEB_IMAGE}" || { echo "❌ Failed to pull Web image"; exit 1; }
+  
+  # Step 2: Deploy using staging compose file
+  echo "🔄 Deploying to staging..."
+  export API_IMAGE="${API_IMAGE}"
+  export WEB_IMAGE="${WEB_IMAGE}"
+  ${COMPOSE_CMD} -f infra/docker-compose.staging.yml up -d || {
+    echo "❌ Deployment failed"
+    exit 1
+  }
+  
+  # Step 3: Wait for health
+  echo "⏳ Waiting for services to be healthy..."
+  MAX_ATTEMPTS=60
+  ATTEMPT=1
+  HEALTHY=false
+  
+  while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
+    HEALTH=$(docker inspect "accounts-api-staging" --format='{{.State.Health.Status}}' 2>/dev/null || echo "unhealthy")
+    if [ "$HEALTH" = "healthy" ]; then
+      HTTP_HEALTH=$(docker exec "accounts-api-staging" wget --quiet --tries=1 --spider -O /dev/null "http://localhost:3001/api/v1/health" 2>/dev/null && echo "200" || echo "000")
+      if [ "$HTTP_HEALTH" = "200" ]; then
+        echo "✅ Staging API is healthy"
+        HEALTHY=true
+        break
+      fi
+    fi
+    echo "   Attempt ${ATTEMPT}/${MAX_ATTEMPTS}: ${HEALTH}"
+    sleep 2
+    ATTEMPT=$((ATTEMPT + 1))
+  done
+  
+  if [ "$HEALTHY" != "true" ]; then
+    echo "❌ Staging API failed health checks"
+    exit 1
+  fi
+  
+  echo "✅ Staging deployment completed successfully"
+  exit 0
+fi
+
+# Blue-Green deployment for production
+echo "🔄 Starting Blue-Green Deployment for Production"
 
 # Determine which environment is currently active
 CURRENT_ACTIVE=$(docker ps --filter "name=accounts-api" --format "{{.Names}}" | grep -E "(blue|green)" | head -1 || echo "")

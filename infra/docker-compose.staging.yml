@@ -25,9 +25,7 @@ services:
   # Fastify API Backend
   api:
     container_name: accounts-api-staging
-    build:
-      context: /root/projects
-      dockerfile: accounts.mojo/apps/api/Dockerfile
+    image: ${API_IMAGE:-ghcr.io/gkeferstein/account.mojo-api:main-latest}
     depends_on:
       db:
         condition: service_healthy
