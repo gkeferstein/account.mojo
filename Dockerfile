@@ -21,14 +21,10 @@ RUN apt-get update && apt-get install -y \
 # Copy package files from web app
 COPY accounts.mojo/apps/web/package.json ./package.json
 
-# Remove @mojo/design from package.json (we'll copy it manually)
-RUN sed -i '/@mojo\/design/d' package.json
-
-# Install dependencies
+# Note: @gkeferstein/design will be installed via npm install
+# Ensure .npmrc is configured with GitHub Packages token before this step
+# Install dependencies (including @gkeferstein/design from GitHub Packages)
 RUN npm install --legacy-peer-deps
-
-# Copy @mojo/design package manually
-COPY design.mojo/packages/design ./node_modules/@mojo/design
 
 # Builder stage
 FROM base AS builder
