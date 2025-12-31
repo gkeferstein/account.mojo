@@ -957,10 +957,18 @@ jobs:
           echo "deployment_status=success" >> $GITHUB_OUTPUT
 
       - name: Health Check
+        if: steps.check-ssh.outputs.ssh_available == 'true'
         run: |
           sleep 30
           curl -f https://accounts.mojo-institut.de/api/v1/health || exit 1
           echo "✅ Health check passed!"
+
+      - name: Deployment Skipped
+        if: steps.check-ssh.outputs.ssh_available == 'false'
+        run: |
+          echo "⚠️ Deployment skipped - SSH_PRIVATE_KEY secret not configured"
+          echo "Please configure SSH_PRIVATE_KEY secret in the production environment"
+          exit 0
 
   # ============================================
   # NOTIFICATIONS
