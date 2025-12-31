@@ -56,8 +56,8 @@ RUN mkdir -p ./.next/static && \
       cp -r /app/.next/standalone ./standalone; \
     else \
       mkdir -p ./standalone && \
-      echo '{"type":"module"}' > ./standalone/package.json && \
-      echo 'console.log("Build failed, using fallback");' > ./standalone/server.js; \
+      echo "{\"type\":\"module\"}" > ./standalone/package.json && \
+      echo "console.log('Build failed, using fallback');" > ./standalone/server.js; \
     fi && \
     if [ -d /app/.next/static ]; then \
       cp -r /app/.next/static ./.next/static; \
