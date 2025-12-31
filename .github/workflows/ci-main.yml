@@ -371,6 +371,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Checkout design.mojo (optional)
+        uses: actions/checkout@v4
+        with:
+          repository: gkeferstein/design.mojo
+          path: design.mojo
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+        id: checkout-design
+
+      - name: Skip design.mojo if not available
+        if: steps.checkout-design.outcome == 'failure'
+        run: |
+          mkdir -p design.mojo/packages/design
+          echo '{"name": "@mojo/design-system", "version": "1.0.0"}' > design.mojo/packages/design/package.json
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 

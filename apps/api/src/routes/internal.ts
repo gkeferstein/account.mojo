@@ -63,7 +63,7 @@ export async function internalRoutes(fastify: FastifyInstance): Promise<void> {
 
     if (!user) {
       // Don't expose clerkUserId in error message (security: information disclosure)
-      request.log.warn('User not found in internal API', { clerkUserId });
+      request.log.warn({ clerkUserId }, 'User not found in internal API');
       return reply.status(404).send({
         error: 'Not Found',
         message: 'User not found',
@@ -83,7 +83,7 @@ export async function internalRoutes(fastify: FastifyInstance): Promise<void> {
 
     if (!user) {
       // Don't expose clerkUserId in error message (security: information disclosure)
-      request.log.warn('User not found in internal API', { clerkUserId });
+      request.log.warn({ clerkUserId }, 'User not found in internal API');
       return reply.status(404).send({
         error: 'Not Found',
         message: 'User not found',
@@ -147,7 +147,7 @@ export async function internalRoutes(fastify: FastifyInstance): Promise<void> {
 
     if (!tenant) {
       // Don't expose clerkOrgId in error message (security: information disclosure)
-      request.log.warn('Tenant not found in internal API', { clerkOrgId });
+      request.log.warn({ clerkOrgId }, 'Tenant not found in internal API');
       return reply.status(404).send({
         error: 'Not Found',
         message: 'Tenant not found',
@@ -182,7 +182,7 @@ export async function internalRoutes(fastify: FastifyInstance): Promise<void> {
 
     if (!tenant) {
       // Don't expose clerkOrgId in error message (security: information disclosure)
-      request.log.warn('Tenant not found in internal API', { clerkOrgId });
+      request.log.warn({ clerkOrgId }, 'Tenant not found in internal API');
       return reply.status(404).send({
         error: 'Not Found',
         message: 'Tenant not found',
