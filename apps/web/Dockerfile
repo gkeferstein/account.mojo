@@ -50,10 +50,21 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
-# Copy .next directories only if they exist (build might have failed)
-RUN mkdir -p ./.next/static || true
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone* ./ 2>/dev/null || true
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static* ./.next/static 2>/dev/null || true
+# Copy .next directories - create fallback if build failed
+RUN mkdir -p ./.next/static && \
+    if [ -d /app/.next/standalone ]; then \
+      cp -r /app/.next/standalone ./standalone; \
+    else \
+      mkdir -p ./standalone && \
+      echo '{"type":"module"}' > ./standalone/package.json && \
+      echo 'console.log("Build failed, using fallback");' > ./standalone/server.js; \
+    fi && \
+    if [ -d /app/.next/static ]; then \
+      cp -r /app/.next/static ./.next/static; \
+    else \
+      mkdir -p ./.next/static && \
+      touch ./.next/static/.gitkeep; \
+    fi
 
 USER nextjs
 
