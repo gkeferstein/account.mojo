@@ -4,8 +4,13 @@ WORKDIR /app
 # Install dependencies
 FROM base AS deps
 
-# Copy package.json
-COPY apps/web/package.json ./
+# Copy package.json and clean it for Docker build (remove workspace: references)
+COPY apps/web/package.json ./package.json.original
+RUN cat package.json.original | \
+    sed 's/"workspace:\*"/"*"/g' | \
+    sed 's/"workspace:\^[^"]*"/"*"/g' | \
+    sed 's/"workspace:[^"]*"/"*"/g' > package.json && \
+    echo "✅ Cleaned package.json (removed workspace: references)"
 
 # Create .npmrc from build arg (token passed from CI)
 ARG NPM_TOKEN
