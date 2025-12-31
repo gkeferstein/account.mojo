@@ -85,8 +85,14 @@ jobs:
             echo "⚠️ Removing package-lock.json to avoid conflicts"
             rm -f package-lock.json
           fi
-          # Use npm install with legacy-peer-deps
-          npm install --legacy-peer-deps || {
+          # Clean workspace: references from package.json files
+          echo "🔍 Cleaning workspace: references..."
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\*"/"*"/g' {} \;
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\^[^"]*"/"*"/g' {} \;
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:[^"]*"/"*"/g' {} \;
+          echo "✅ Cleaned workspace: references from package.json files"
+          # Use npm install with legacy-peer-deps and --no-package-lock
+          npm install --legacy-peer-deps --no-package-lock || {
             echo "❌ npm install failed"
             echo "Checking npm config..."
             npm config list
@@ -225,8 +231,14 @@ jobs:
             echo "⚠️ Removing package-lock.json to avoid conflicts"
             rm -f package-lock.json
           fi
-          # Use npm install with legacy-peer-deps
-          npm install --legacy-peer-deps || {
+          # Clean workspace: references from package.json files
+          echo "🔍 Cleaning workspace: references..."
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\*"/"*"/g' {} \;
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\^[^"]*"/"*"/g' {} \;
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:[^"]*"/"*"/g' {} \;
+          echo "✅ Cleaned workspace: references from package.json files"
+          # Use npm install with legacy-peer-deps and --no-package-lock
+          npm install --legacy-peer-deps --no-package-lock || {
             echo "❌ npm install failed"
             echo "Checking npm config..."
             npm config list
@@ -339,8 +351,14 @@ jobs:
             echo "⚠️ Removing package-lock.json to avoid conflicts"
             rm -f package-lock.json
           fi
-          # Use npm install with legacy-peer-deps
-          npm install --legacy-peer-deps || {
+          # Clean workspace: references from package.json files
+          echo "🔍 Cleaning workspace: references..."
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\*"/"*"/g' {} \;
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\^[^"]*"/"*"/g' {} \;
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:[^"]*"/"*"/g' {} \;
+          echo "✅ Cleaned workspace: references from package.json files"
+          # Use npm install with legacy-peer-deps and --no-package-lock
+          npm install --legacy-peer-deps --no-package-lock || {
             echo "❌ npm install failed"
             echo "Checking npm config..."
             npm config list
