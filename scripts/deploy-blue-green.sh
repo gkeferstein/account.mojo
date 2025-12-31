@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -x  # Enable debug output
 
 # Blue-Green Deployment Script for accounts.mojo
 # Usage: ./deploy-blue-green.sh <version> <environment>
