@@ -76,7 +76,7 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
     // Body is already parsed by verifyWebhookSignature middleware
     const payload = request.body as WebhookPayload;
     
-    request.log.info('Payment webhook received', { event: payload.event });
+    request.log.info({ event: payload.event }, 'Payment webhook received');
 
     try {
       switch (payload.event) {
@@ -99,7 +99,7 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
           });
 
           if (!user) {
-            request.log.warn('User not found for webhook', { clerkUserId: userId, event: payload.event });
+            request.log.warn({ clerkUserId: userId, event: payload.event }, 'User not found for webhook');
             return reply.send({ received: true, processed: false, reason: 'User not found' });
           }
 
@@ -121,7 +121,7 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
             },
           });
 
-          request.log.info('Updated billing cache', { userId: user.id, event: payload.event });
+          request.log.info({ userId: user.id, event: payload.event }, 'Updated billing cache');
           break;
         }
 
@@ -175,7 +175,7 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
             },
           });
 
-          request.log.info('Updated invoice cache', { userId: user.id, event: payload.event });
+          request.log.info({ userId: user.id, event: payload.event }, 'Updated invoice cache');
           break;
         }
 
@@ -216,21 +216,17 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
             },
           });
 
-          request.log.info('Updated entitlement cache', { userId: user.id, event: payload.event });
+          request.log.info({ userId: user.id, event: payload.event }, 'Updated entitlement cache');
           break;
         }
 
         default:
-          request.log.warn('Unhandled payment event', { event: payload.event });
+          request.log.warn({ event: payload.event }, 'Unhandled payment event');
       }
 
       return reply.send({ received: true, processed: true });
     } catch (error) {
-      request.log.error('Error processing payment webhook', {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        event: payload.event,
-      });
+      request.log.error({ error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined, event: payload.event }, 'Error processing payment webhook');
       return reply.status(500).send({ error: 'Internal error processing webhook' });
     }
   });
@@ -244,7 +240,7 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
     // Body is already parsed by verifyWebhookSignature middleware
     const payload = request.body as WebhookPayload;
     
-    request.log.info('CRM webhook received', { event: payload.event });
+    request.log.info({ event: payload.event }, 'CRM webhook received');
 
     try {
       switch (payload.event) {
@@ -278,10 +274,10 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
             create: {
               tenantId,
               userId: user.id,
-              payload: profile,
+              payload: profile as any,
             },
             update: {
-              payload: profile,
+              payload: profile as any,
             },
           });
 
@@ -297,27 +293,24 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
             });
           }
 
-          request.log.info('Updated profile cache', { userId: user.id, event: payload.event });
+          request.log.info({ userId: user.id, event: payload.event }, 'Updated profile cache');
           break;
         }
 
         case 'consent.updated': {
           // Handle consent updates from CRM
-          request.log.info('Consent update received, no local cache action needed', { userId: user.id });
+          const { userId } = payload.data as { userId?: string };
+          request.log.info(userId ? { userId } : {}, 'Consent update received, no local cache action needed');
           break;
         }
 
         default:
-          request.log.warn('Unhandled CRM event', { event: payload.event });
+          request.log.warn({ event: payload.event }, 'Unhandled CRM event');
       }
 
       return reply.send({ received: true, processed: true });
     } catch (error) {
-      request.log.error('Error processing CRM webhook', {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        event: payload.event,
-      });
+      request.log.error({ error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined, event: payload.event }, 'Error processing CRM webhook');
       return reply.status(500).send({ error: 'Internal error processing webhook' });
     }
   });

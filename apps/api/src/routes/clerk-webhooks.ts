@@ -94,11 +94,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
     const svixSignature = request.headers['svix-signature'] as string;
 
     if (!svixId || !svixTimestamp || !svixSignature) {
-      request.log.error('Missing Svix headers', {
-        hasSvixId: !!svixId,
-        hasSvixTimestamp: !!svixTimestamp,
-        hasSvixSignature: !!svixSignature,
-      });
+      request.log.error({ hasSvixId: !!svixId, hasSvixTimestamp: !!svixTimestamp, hasSvixSignature: !!svixSignature }, 'Missing Svix headers');
       return reply.status(400).send({ error: 'Missing webhook headers' });
     }
 
@@ -119,9 +115,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
         'svix-signature': svixSignature,
       }) as ClerkWebhookEvent;
     } catch (err) {
-      request.log.error('Webhook signature verification failed', {
-        error: err instanceof Error ? err.message : String(err),
-      });
+      request.log.error({ error: err instanceof Error ? err.message : String(err) }, 'Webhook signature verification failed');
       return reply.status(401).send({ error: 'Invalid webhook signature' });
     }
 
@@ -131,7 +125,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
     });
 
     if (existingEvent) {
-      request.log.warn('Duplicate webhook event, skipping', { svixId, eventType: existingEvent.eventType });
+      request.log.warn({ svixId, eventType: existingEvent.eventType }, 'Duplicate webhook event, skipping');
       return reply.send({ received: true, processed: false, reason: 'Duplicate event' });
     }
 
@@ -141,13 +135,13 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
         eventId: svixId,
         eventType: event.type,
         source: 'clerk',
-        payload: event.data,
+        payload: event.data as any,
         status: 'processing',
         attemptCount: 1,
       },
     });
 
-    request.log.info('Clerk webhook received', { eventType: event.type, svixId });
+    request.log.info({ eventType: event.type, svixId }, 'Clerk webhook received');
 
     try {
       // Process event based on type
@@ -170,7 +164,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
               lastName: userData.last_name,
               avatarUrl: userData.image_url,
               platformRole: platformRole ? mapPlatformRole(platformRole) : null,
-              metadata: userData.public_metadata || {},
+              metadata: (userData.public_metadata || {}) as any,
             },
             update: {
               email: primaryEmail,
@@ -180,7 +174,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
             },
           });
 
-          request.log.info('User created/updated via webhook', { userId: user.id, email: primaryEmail });
+          request.log.info({ userId: user.id, email: primaryEmail }, 'User created/updated via webhook');
 
           // Create customer in kontakte.mojo (SSOT)
           // This may upgrade an existing lead or create a new customer
@@ -194,19 +188,16 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
 
             if (crmResult) {
               if (crmResult.upgraded) {
-                request.log.info('Lead upgraded to customer in CRM', { accountId: crmResult.accountId });
+                request.log.info({ accountId: crmResult.accountId }, 'Lead upgraded to customer in CRM');
               } else if (crmResult.created) {
-                request.log.info('Customer created in CRM', { accountId: crmResult.accountId });
+                request.log.info({ accountId: crmResult.accountId }, 'Customer created in CRM');
               } else if (crmResult.existing) {
-                request.log.info('Customer already exists in CRM', { accountId: crmResult.accountId });
+                request.log.info({ accountId: crmResult.accountId }, 'Customer already exists in CRM');
               }
             }
           } catch (crmError) {
             // Log error but don't fail the webhook - CRM sync can be retried
-            request.log.warn('Failed to sync customer to CRM', {
-              error: crmError instanceof Error ? crmError.message : String(crmError),
-              clerkUserId: userData.id,
-            });
+            request.log.warn({ error: crmError instanceof Error ? crmError.message : String(crmError), clerkUserId: userData.id }, 'Failed to sync customer to CRM');
           }
 
           // Auto-provision Personal Organization
@@ -228,7 +219,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
               lastName: userData.last_name,
               avatarUrl: userData.image_url,
               platformRole: platformRole ? mapPlatformRole(platformRole) : null,
-              metadata: userData.public_metadata || {},
+              metadata: (userData.public_metadata || {}) as any,
             },
             update: {
               email: primaryEmail,
@@ -236,11 +227,11 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
               lastName: userData.last_name,
               avatarUrl: userData.image_url,
               platformRole: platformRole ? mapPlatformRole(platformRole) : null,
-              metadata: userData.public_metadata || {},
+              metadata: (userData.public_metadata || {}) as any,
             },
           });
 
-          request.log.info('User updated via webhook', { clerkUserId: userData.id });
+          request.log.info({ clerkUserId: userData.id }, 'User updated via webhook');
           break;
         }
 
@@ -253,7 +244,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
             data: { deletedAt: new Date() },
           });
 
-          request.log.info('User soft-deleted via webhook', { clerkUserId: userData.id });
+          request.log.info({ clerkUserId: userData.id }, 'User soft-deleted via webhook');
           break;
         }
 
@@ -271,17 +262,17 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
               slug: orgData.slug || `org-${orgData.id.replace('org_', '')}`,
               logoUrl: orgData.image_url,
               isPersonal: false,
-              metadata: orgData.public_metadata || {},
+              metadata: (orgData.public_metadata || {}) as any,
             },
             update: {
               name: orgData.name,
               slug: orgData.slug,
               logoUrl: orgData.image_url,
-              metadata: orgData.public_metadata || {},
+              metadata: (orgData.public_metadata || {}) as any,
             },
           });
 
-          request.log.info('Organization created via webhook', { clerkOrgId: orgData.id, name: orgData.name });
+          request.log.info({ clerkOrgId: orgData.id, name: orgData.name }, 'Organization created via webhook');
           break;
         }
 
@@ -296,17 +287,17 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
               slug: orgData.slug || `org-${orgData.id.replace('org_', '')}`,
               logoUrl: orgData.image_url,
               isPersonal: false,
-              metadata: orgData.public_metadata || {},
+              metadata: (orgData.public_metadata || {}) as any,
             },
             update: {
               name: orgData.name,
               slug: orgData.slug,
               logoUrl: orgData.image_url,
-              metadata: orgData.public_metadata || {},
+              metadata: (orgData.public_metadata || {}) as any,
             },
           });
 
-          request.log.info('Organization updated via webhook', { clerkOrgId: orgData.id });
+          request.log.info({ clerkOrgId: orgData.id }, 'Organization updated via webhook');
           break;
         }
 
@@ -319,7 +310,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
             data: { deletedAt: new Date() },
           });
 
-          request.log.info('Organization soft-deleted via webhook', { clerkOrgId: orgData.id });
+          request.log.info({ clerkOrgId: orgData.id }, 'Organization soft-deleted via webhook');
           break;
         }
 
@@ -351,10 +342,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
                   },
                 });
               } catch (err) {
-                request.log.error('Failed to fetch org from Clerk', {
-                  error: err instanceof Error ? err.message : String(err),
-                  clerkOrgId,
-                });
+                request.log.error({ error: err instanceof Error ? err.message : String(err), clerkOrgId }, 'Failed to fetch org from Clerk');
                 throw new Error(`Tenant not found for org ${clerkOrgId}`);
               }
             } else {
@@ -382,10 +370,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
                   },
                 });
               } catch (err) {
-                request.log.error('Failed to fetch user from Clerk', {
-                  error: err instanceof Error ? err.message : String(err),
-                  clerkUserId,
-                });
+                request.log.error({ error: err instanceof Error ? err.message : String(err), clerkUserId }, 'Failed to fetch user from Clerk');
                 throw new Error(`User not found for ${clerkUserId}`);
               }
             } else {
@@ -445,12 +430,9 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
                 role: mapClerkRoleToTenantRole(memberData.role),
               },
             });
-            request.log.info('Membership updated via webhook', {
-              clerkMembershipId: memberData.id,
-              role: memberData.role,
-            });
+            request.log.info({ clerkMembershipId: memberData.id, role: memberData.role }, 'Membership updated via webhook');
           } else {
-            request.log.warn('Membership not found for update', { clerkMembershipId: memberData.id });
+            request.log.warn({ clerkMembershipId: memberData.id }, 'Membership not found for update');
           }
           break;
         }
@@ -467,13 +449,13 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
               where: { id: membership.id },
               data: { status: 'removed' },
             });
-            request.log.info('Membership removed via webhook', { clerkMembershipId: memberData.id });
+            request.log.info({ clerkMembershipId: memberData.id }, 'Membership removed via webhook');
           }
           break;
         }
 
         default:
-          request.log.warn('Unhandled Clerk event type', { eventType: event.type, svixId });
+          request.log.warn({ eventType: event.type, svixId }, 'Unhandled Clerk event type');
       }
 
       // Mark webhook as successful
@@ -487,12 +469,7 @@ export async function clerkWebhooksRoutes(fastify: FastifyInstance): Promise<voi
 
       return reply.send({ received: true, processed: true });
     } catch (error) {
-      request.log.error('Error processing webhook', {
-        eventType: event.type,
-        svixId,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
+      request.log.error({ eventType: event.type, svixId, error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined }, 'Error processing webhook');
 
       // Mark webhook as failed
       await prisma.webhookEvent.update({
