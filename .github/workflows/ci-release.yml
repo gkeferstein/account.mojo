@@ -557,13 +557,21 @@ jobs:
             type=raw,value=${{ needs.prepare-release.outputs.version }}
             type=sha,prefix=,format=long
 
-      - name: Create .npmrc for Web Docker Build
-        if: steps.docker-token.outputs.token_exists == 'true'
+      - name: Checkout design.mojo (optional)
+        uses: actions/checkout@v4
+        with:
+          repository: gkeferstein/design.mojo
+          path: design.mojo
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+        id: checkout-design
+
+      - name: Skip design.mojo if not available
+        if: steps.checkout-design.outcome == 'failure'
         run: |
-          echo "@gkeferstein:registry=https://npm.pkg.github.com" > ./apps/web/.npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ steps.docker-token.outputs.token }}" >> ./apps/web/.npmrc
-          echo "always-auth=true" >> ./apps/web/.npmrc
-          echo "Created .npmrc for Web Docker build"
+          mkdir -p design.mojo/packages/design
+          echo '{"name": "@mojo/design-system", "version": "1.0.0"}' > design.mojo/packages/design/package.json
 
       - name: Build and push Web Docker image
         if: steps.docker-token.outputs.token_exists == 'true'

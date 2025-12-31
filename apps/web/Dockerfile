@@ -22,9 +22,8 @@ RUN sed -i '/@mojo\/design/d' package.json
 # Install other dependencies
 RUN npm install --legacy-peer-deps
 
-# Copy the @mojo/design package manually (if exists, skip if not available)
-# Note: design.mojo might not be available in all builds
-COPY design.mojo/packages/design* ./node_modules/@mojo/design
+# Note: @mojo/design is removed from package.json above
+# If design.mojo is available, it will be copied in the build step
 
 # Build
 FROM base AS builder
