@@ -401,7 +401,7 @@ jobs:
           export GITHUB_ACTOR="${{ github.actor }}"
           export GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
           export VERSION="main-latest"
-          export APP_NAME="accounts.mojo"
+          export APP_NAME="account.mojo"
           
           ssh -T -o StrictHostKeyChecking=no root@${{ secrets.STAGING_SERVER }} \
             REGISTRY="${REGISTRY}" \
