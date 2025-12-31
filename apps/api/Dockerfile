@@ -12,9 +12,14 @@ WORKDIR /app
 FROM base AS shared-builder
 WORKDIR /app/packages/shared
 COPY accounts.mojo/packages/shared/ ./
-# Copy .npmrc if it exists (created in CI)
-COPY accounts.mojo/.npmrc ./.npmrc
-COPY accounts.mojo/.npmrc /root/.npmrc
+# Create .npmrc from build arg (token passed from CI)
+ARG NPM_TOKEN
+RUN if [ -n "$NPM_TOKEN" ]; then \
+      echo "@gkeferstein:registry=https://npm.pkg.github.com" > .npmrc && \
+      echo "//npm.pkg.github.com/:_authToken=$NPM_TOKEN" >> .npmrc && \
+      echo "always-auth=true" >> .npmrc && \
+      cp .npmrc /root/.npmrc; \
+    fi
 RUN npm install && npm run build
 
 # ===========================================
@@ -27,9 +32,14 @@ WORKDIR /app/apps/api
 COPY accounts.mojo/apps/api/package*.json ./
 COPY accounts.mojo/apps/api/prisma ./prisma/
 
-# Copy .npmrc if it exists (created in CI)
-COPY accounts.mojo/.npmrc ./.npmrc
-COPY accounts.mojo/.npmrc /root/.npmrc
+# Create .npmrc from build arg (token passed from CI)
+ARG NPM_TOKEN
+RUN if [ -n "$NPM_TOKEN" ]; then \
+      echo "@gkeferstein:registry=https://npm.pkg.github.com" > .npmrc && \
+      echo "//npm.pkg.github.com/:_authToken=$NPM_TOKEN" >> .npmrc && \
+      echo "always-auth=true" >> .npmrc && \
+      cp .npmrc /root/.npmrc; \
+    fi
 
 # Entferne lokale dependencies und installiere den Rest
 RUN sed -i '/"@accounts\/shared"/d' package.json && \
