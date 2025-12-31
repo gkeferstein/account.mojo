@@ -26,8 +26,8 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_<von-clerk-dashboard>
 CLERK_WEBHOOK_SECRET=whsec_<von-clerk-webhook-endpoint>
 
 # Frontend URLs (Production)
-FRONTEND_URL=https://accounts.mojo-institut.de
-NEXT_PUBLIC_API_URL=https://accounts.mojo-institut.de
+FRONTEND_URL=https://account.mojo-institut.de
+NEXT_PUBLIC_API_URL=https://account.mojo-institut.de
 
 # External Services - Payments
 PAYMENTS_API_URL=https://payments.mojo-institut.de/api/v1
@@ -89,7 +89,7 @@ make traefik-connect
 
 Stelle sicher, dass die folgenden DNS-Einträge konfiguriert sind:
 
-- `accounts.mojo-institut.de` → Server IP (A-Record)
+- `account.mojo-institut.de` → Server IP (A-Record)
 - `dev.account.mojo-institut.de` → Server IP (A-Record, optional für Dev)
 
 ### 4. Traefik Konfiguration
@@ -150,13 +150,13 @@ make logs-web
 
 ```bash
 # API Health Check
-curl https://accounts.mojo-institut.de/api/v1/health
+curl https://account.mojo-institut.de/api/v1/health
 
 # Detailed Health Check
-curl https://accounts.mojo-institut.de/api/v1/health/detailed
+curl https://account.mojo-institut.de/api/v1/health/detailed
 
 # Frontend prüfen
-curl -I https://accounts.mojo-institut.de/
+curl -I https://account.mojo-institut.de/
 ```
 
 ## Post-Deployment Checklist
@@ -229,7 +229,7 @@ docker exec accounts-api npx prisma generate
 ```bash
 # Webhook Events log prüfen (Internal API)
 curl -H "X-Internal-Token: ${INTERNAL_API_SECRET}" \
-  https://accounts.mojo-institut.de/api/internal/webhook-events
+  https://account.mojo-institut.de/api/internal/webhook-events
 
 # Webhook Secrets prüfen (müssen mit anderen Services übereinstimmen!)
 echo $WEBHOOK_SECRET_PAYMENTS
@@ -284,11 +284,11 @@ docker logs accounts-db
 ```bash
 # Health + Stats
 curl -H "X-Internal-Token: ${INTERNAL_API_SECRET}" \
-  https://accounts.mojo-institut.de/api/internal/health
+  https://account.mojo-institut.de/api/internal/health
 
 # Webhook Event Log
 curl -H "X-Internal-Token: ${INTERNAL_API_SECRET}" \
-  https://accounts.mojo-institut.de/api/internal/webhook-events
+  https://account.mojo-institut.de/api/internal/webhook-events
 ```
 
 ## Wartung

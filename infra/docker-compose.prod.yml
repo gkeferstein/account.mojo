@@ -13,7 +13,7 @@ services:
       # Production environment
       NODE_ENV: production
       # Production frontend URL
-      FRONTEND_URL: ${FRONTEND_URL:-https://accounts.mojo-institut.de}
+      FRONTEND_URL: ${FRONTEND_URL:-https://account.mojo-institut.de}
       # Never mock external services in production
       MOCK_EXTERNAL_SERVICES: false
       # Production secrets (must be set via .env)
@@ -38,7 +38,7 @@ services:
     build:
       args:
         # Production API URL (without /api suffix)
-        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://accounts.mojo-institut.de}
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://account.mojo-institut.de}
         # Production Clerk key (must be set via .env)
         - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
         - NEXT_PUBLIC_PAYMENTS_API_URL=${NEXT_PUBLIC_PAYMENTS_API_URL:-https://payments.mojo-institut.de/api}

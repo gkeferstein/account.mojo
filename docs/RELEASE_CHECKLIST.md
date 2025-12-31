@@ -33,7 +33,7 @@
 ### Infrastructure
 - [ ] Docker Netzwerk (`mojo-network`) existiert
 - [ ] Traefik mit Netzwerk verbunden
-- [ ] DNS-Einträge konfiguriert (`accounts.mojo-institut.de`)
+- [ ] DNS-Einträge konfiguriert (`account.mojo-institut.de`)
 - [ ] SSL-Zertifikate (Let's Encrypt) funktionieren
 
 ## 🚀 Deployment
@@ -75,13 +75,13 @@
 
 6. **Health Checks**
    ```bash
-   curl https://accounts.mojo-institut.de/api/v1/health
-   curl https://accounts.mojo-institut.de/api/v1/health/detailed
+   curl https://account.mojo-institut.de/api/v1/health
+   curl https://account.mojo-institut.de/api/v1/health/detailed
    ```
 
 ## ✅ Post-Deployment
 
-- [ ] Frontend erreichbar (`https://accounts.mojo-institut.de`)
+- [ ] Frontend erreichbar (`https://account.mojo-institut.de`)
 - [ ] API Health Checks erfolgreich
 - [ ] Clerk Authentication funktioniert
 - [ ] Webhooks von Clerk, payments.mojo, kontakte.mojo funktionieren
