@@ -11,9 +11,13 @@ WORKDIR /app
 # ===========================================
 FROM base AS shared-builder
 WORKDIR /app/packages/shared
-COPY accounts.mojo/packages/shared/ ./
-# Create .npmrc from build arg (token passed from CI)
+
+# Build arg for npm token (must be declared in each stage)
 ARG NPM_TOKEN
+
+COPY accounts.mojo/packages/shared/ ./
+
+# Create .npmrc from build arg (token passed from CI)
 RUN if [ -n "$NPM_TOKEN" ]; then \
       echo "@gkeferstein:registry=https://npm.pkg.github.com" > .npmrc && \
       echo "//npm.pkg.github.com/:_authToken=$NPM_TOKEN" >> .npmrc && \
@@ -28,12 +32,14 @@ RUN npm install && npm run build
 FROM base AS api-deps
 WORKDIR /app/apps/api
 
+# Build arg for npm token (must be declared in each stage)
+ARG NPM_TOKEN
+
 # Copy package.json und modifiziere es (entferne lokale dependencies)
 COPY accounts.mojo/apps/api/package*.json ./
 COPY accounts.mojo/apps/api/prisma ./prisma/
 
 # Create .npmrc from build arg (token passed from CI)
-ARG NPM_TOKEN
 RUN if [ -n "$NPM_TOKEN" ]; then \
       echo "@gkeferstein:registry=https://npm.pkg.github.com" > .npmrc && \
       echo "//npm.pkg.github.com/:_authToken=$NPM_TOKEN" >> .npmrc && \
