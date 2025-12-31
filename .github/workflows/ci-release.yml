@@ -198,9 +198,15 @@ jobs:
         env:
           NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
         run: |
+          echo "🔍 Cleaning workspace: references..."
           if [ -f package-lock.json ]; then
             rm -f package-lock.json
           fi
+          # Clean workspace: references from package.json files
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\*"/"*"/g' {} \;
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\^[^"]*"/"*"/g' {} \;
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:[^"]*"/"*"/g' {} \;
+          echo "✅ Cleaned workspace: references from package.json files"
           npm install --legacy-peer-deps --no-package-lock
 
       - name: Build Shared Package
@@ -303,9 +309,15 @@ jobs:
         env:
           NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
         run: |
+          echo "🔍 Cleaning workspace: references..."
           if [ -f package-lock.json ]; then
             rm -f package-lock.json
           fi
+          # Clean workspace: references from package.json files
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\*"/"*"/g' {} \;
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\^[^"]*"/"*"/g' {} \;
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:[^"]*"/"*"/g' {} \;
+          echo "✅ Cleaned workspace: references from package.json files"
           npm install --legacy-peer-deps --no-package-lock
 
       - name: Build Shared Package
