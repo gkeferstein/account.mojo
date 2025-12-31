@@ -55,6 +55,7 @@ jobs:
             TAG="${{ github.event.inputs.version }}"
             IS_TAG_PUSH="true"
             COMMIT_SHA=$(git rev-parse HEAD)
+            # For manual dispatch, assume main pipeline was successful (or skip check)
             MAIN_PIPELINE_SUCCESS="true"
           else
             # workflow_run trigger - check if the triggering commit has a tag
@@ -248,6 +249,10 @@ jobs:
     name: Tests (Comprehensive)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: check-tag-push
+    if: |
+      needs.check-tag-push.outputs.is_tag_push == 'true' &&
+      needs.check-tag-push.outputs.main_pipeline_success == 'true'
     needs: check-tag-push
     if: |
       needs.check-tag-push.outputs.is_tag_push == 'true' &&
