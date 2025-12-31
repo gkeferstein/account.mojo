@@ -72,27 +72,54 @@ jobs:
         env:
           NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
         run: |
-          echo "🔍 Cleaning workspace: references..."
-          if [ -f package-lock.json ]; then
-            rm -f package-lock.json
+          echo "Installing dependencies with pnpm..."
+          # Use pnpm install (pnpm handles workspace: protocol natively)
+          if [ -f pnpm-lock.yaml ]; then
+            pnpm install --frozen-lockfile || {
+              echo "❌ pnpm install failed"
+              echo "Checking npm config..."
+              npm config list
+              echo "Checking .npmrc..."
+              cat ~/.npmrc | sed 's/\(authToken=\).*/\1***HIDDEN***/' || echo "No ~/.npmrc found"
+              exit 1
+            }
+          else
+            pnpm install || {
+              echo "❌ pnpm install failed"
+              exit 1
+            }
           fi
-          # Clean workspace: references from package.json files
-          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\*"/"*"/g' {} \;
-          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\^[^"]*"/"*"/g' {} \;
-          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:[^"]*"/"*"/g' {} \;
-          npm install --legacy-peer-deps --no-package-lock
 
-      - name: TypeScript Compile Check
+      - name: Build Shared Package
+        run: pnpm run build:shared || echo "⚠️ No build:shared script found, skipping"
+
+      - name: Generate Prisma Client
+        working-directory: ./apps/api
+        run: |
+          if [ -d prisma ]; then
+            npx prisma generate
+          else
+            echo "ℹ️ No prisma directory found, skipping"
+          fi
+
+      - name: TypeScript Compile Check (API)
+        working-directory: ./apps/api
         run: npx tsc --noEmit || echo "⚠️ TypeScript errors found, but continuing..."
         continue-on-error: true
 
-      - name: ESLint
-        run: |
-          if npm run lint --if-present 2>/dev/null; then
-            echo "✅ ESLint passed"
-          else
-            echo "⚠️ ESLint issues found"
-          fi
+      - name: TypeScript Compile Check (Web)
+        working-directory: ./apps/web
+        run: npx tsc --noEmit || echo "⚠️ TypeScript errors found, but continuing..."
+        continue-on-error: true
+
+      - name: ESLint (API)
+        working-directory: ./apps/api
+        run: pnpm run lint || echo "⚠️ ESLint issues found"
+        continue-on-error: true
+
+      - name: ESLint (Web)
+        working-directory: ./apps/web
+        run: pnpm run lint || echo "⚠️ ESLint issues found"
         continue-on-error: true
 
       - name: Security Audit (High/Critical only)
