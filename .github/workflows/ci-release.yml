@@ -253,10 +253,6 @@ jobs:
     if: |
       needs.check-tag-push.outputs.is_tag_push == 'true' &&
       needs.check-tag-push.outputs.main_pipeline_success == 'true'
-    needs: check-tag-push
-    if: |
-      needs.check-tag-push.outputs.is_tag_push == 'true' &&
-      needs.check-tag-push.outputs.main_pipeline_success == 'true'
     services:
       postgres:
         image: postgres:16-alpine
