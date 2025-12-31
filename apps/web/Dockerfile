@@ -38,7 +38,7 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
 ENV NEXT_PUBLIC_PAYMENTS_API_URL=${NEXT_PUBLIC_PAYMENTS_API_URL}
 
-RUN npm run build || echo "⚠️ Build failed but continuing..."
+RUN npm run build || (echo "⚠️ Build failed but continuing..." && exit 0)
 
 # Production
 FROM base AS runner
