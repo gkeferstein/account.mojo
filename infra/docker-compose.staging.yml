@@ -68,13 +68,7 @@ services:
   # Next.js Web Frontend
   web:
     container_name: accounts-web-staging
-    build:
-      context: /root/projects
-      dockerfile: accounts.mojo/Dockerfile
-      args:
-        - NEXT_PUBLIC_API_URL=https://account.staging.mojo-institut.de
-        - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-        - NEXT_PUBLIC_PAYMENTS_API_URL=${NEXT_PUBLIC_PAYMENTS_API_URL:-https://payments.mojo-institut.de/api}
+    image: ${WEB_IMAGE:-ghcr.io/gkeferstein/account.mojo-web:main-latest}
     environment:
       PORT: 3020
       NODE_ENV: staging
