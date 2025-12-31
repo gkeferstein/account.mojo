@@ -8,7 +8,7 @@ set -e
 VERSION=${1:-latest}
 ENVIRONMENT=${2:-production}
 REGISTRY=${REGISTRY:-ghcr.io}
-REPOSITORY=${GITHUB_REPOSITORY:-gkeferstein/accounts.mojo}
+REPOSITORY=${GITHUB_REPOSITORY:-gkeferstein/account.mojo}
 
 API_IMAGE="${REGISTRY}/${REPOSITORY}-api:${VERSION}"
 WEB_IMAGE="${REGISTRY}/${REPOSITORY}-web:${VERSION}"
