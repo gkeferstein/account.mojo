@@ -419,6 +419,7 @@ jobs:
           fetch-depth: 1
           token: ${{ secrets.GITHUB_TOKEN }}
         id: checkout-design
+        continue-on-error: true
 
       - name: Skip design.mojo if not available
         if: steps.checkout-design.outcome == 'failure'
@@ -455,6 +456,17 @@ jobs:
             type=sha,prefix=,format=long
             type=raw,value=latest
 
+      - name: Determine Docker npm token
+        id: docker-npm-token
+        run: |
+          if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
+            echo "token=${{ secrets.GHCR_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "✅ Using GHCR_TOKEN for Docker builds"
+          else
+            echo "token=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "⚠️ GHCR_TOKEN not found, using GITHUB_TOKEN as fallback"
+          fi
+
       - name: Build and push API Docker image
         if: steps.check-ghcr.outputs.token_exists == 'true'
         uses: docker/build-push-action@v5
@@ -465,6 +477,7 @@ jobs:
           tags: ${{ steps.meta-api.outputs.tags }}
           labels: ${{ steps.meta-api.outputs.labels }}
           build-args: |
+            NPM_TOKEN=${{ steps.docker-npm-token.outputs.token }}
             GIT_COMMIT=${{ github.sha }}
             BUILD_DATE=${{ github.event.head_commit.timestamp || github.run_started_at }}
             GIT_BRANCH=${{ github.ref_name }}
@@ -490,6 +503,7 @@ jobs:
           tags: ${{ steps.meta-web.outputs.tags }}
           labels: ${{ steps.meta-web.outputs.labels }}
           build-args: |
+            NPM_TOKEN=${{ steps.docker-npm-token.outputs.token }}
             NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL || 'https://accounts.mojo-institut.de' }}
             NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
             NEXT_PUBLIC_PAYMENTS_API_URL=${{ secrets.NEXT_PUBLIC_PAYMENTS_API_URL || 'https://payments.mojo-institut.de/api' }}
