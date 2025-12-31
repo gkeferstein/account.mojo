@@ -3,7 +3,7 @@
 Das zentrale Self-Service-Portal für MOJO-Kunden zur Verwaltung ihrer digitalen Identität und Abonnements.
 
 **Version:** 0.3.0  
-**Domain:** accounts.mojo-institut.de  
+**Domain:** account.mojo-institut.de  
 **Status:** Production-Ready
 
 ---
@@ -21,7 +21,7 @@ MOJO Accounts ist ein Multi-Tenant Account-Management-System mit folgenden Funkt
 - **DSGVO-Compliance** - Datenexport & Account-Löschung
 
 **Live URLs:**
-- Production: https://accounts.mojo-institut.de
+- Production: https://account.mojo-institut.de
 - Development: https://dev.account.mojo-institut.de
 
 ---
@@ -31,7 +31,7 @@ MOJO Accounts ist ein Multi-Tenant Account-Management-System mit folgenden Funkt
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                         Traefik Reverse Proxy                            │
-│              accounts.mojo-institut.de / dev.account.mojo-institut.de    │
+│              account.mojo-institut.de / dev.account.mojo-institut.de    │
 ├─────────────────────┬─────────────────────┬──────────────────────────────┤
 │        /            │      /api/*         │       (Intern)               │
 │     Frontend        │        API          │      PostgreSQL              │
@@ -621,7 +621,7 @@ make migrate
 
 ### DNS
 
-A-Record für `accounts.mojo-institut.de` → Server-IP
+A-Record für `account.mojo-institut.de` → Server-IP
 
 ### Environment-Variablen
 
@@ -639,8 +639,8 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
 CLERK_WEBHOOK_SECRET=whsec_...
 
 # Frontend
-FRONTEND_URL=https://accounts.mojo-institut.de
-NEXT_PUBLIC_API_URL=https://accounts.mojo-institut.de
+FRONTEND_URL=https://account.mojo-institut.de
+NEXT_PUBLIC_API_URL=https://account.mojo-institut.de
 
 # External Services
 PAYMENTS_API_URL=https://payments.mojo-institut.de/api/v1

@@ -15,7 +15,7 @@
   - `CLERK_PUBLISHABLE_KEY` - **LIVE Key** (`pk_live_...`)
   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` - **LIVE Key**
   - `CLERK_WEBHOOK_SECRET` - Von Clerk Dashboard
-  - `FRONTEND_URL` - Production URL (`https://accounts.mojo-institut.de`)
+  - `FRONTEND_URL` - Production URL (`https://account.mojo-institut.de`)
   - `NEXT_PUBLIC_API_URL` - Production URL
   - `PAYMENTS_API_URL` - Production URL
   - `PAYMENTS_API_KEY` - Service API Key (muss mit payments.mojo übereinstimmen)
@@ -193,10 +193,10 @@ cat apps/api/src/middleware/error-handler.ts | grep -A 5 "isDevelopment"
 **Prüfung:**
 ```bash
 # Health Checks testen
-curl https://accounts.mojo-institut.de/api/v1/health
-curl https://accounts.mojo-institut.de/api/v1/health/detailed
-curl https://accounts.mojo-institut.de/api/v1/ready
-curl https://accounts.mojo-institut.de/api/v1/live
+curl https://account.mojo-institut.de/api/v1/health
+curl https://account.mojo-institut.de/api/v1/health/detailed
+curl https://account.mojo-institut.de/api/v1/ready
+curl https://account.mojo-institut.de/api/v1/live
 ```
 
 ---
@@ -330,8 +330,8 @@ docker exec accounts-api npx prisma migrate deploy
 
 # 7. Health Checks nach Deployment
 sleep 30
-curl https://accounts.mojo-institut.de/api/v1/health
-curl https://accounts.mojo-institut.de/api/v1/health/detailed
+curl https://account.mojo-institut.de/api/v1/health
+curl https://account.mojo-institut.de/api/v1/health/detailed
 
 # 8. Logs überwachen
 docker logs -f accounts-api

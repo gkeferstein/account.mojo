@@ -42,7 +42,7 @@ services:
       MOCK_EXTERNAL_SERVICES: ${MOCK_EXTERNAL_SERVICES:-false}
       WEBHOOK_SECRET_PAYMENTS: ${WEBHOOK_SECRET_PAYMENTS}
       WEBHOOK_SECRET_CRM: ${WEBHOOK_SECRET_CRM}
-      FRONTEND_URL: ${FRONTEND_URL:-https://accounts.mojo-institut.de}
+      FRONTEND_URL: ${FRONTEND_URL:-https://account.mojo-institut.de}
       NODE_ENV: production
     expose:
       - "3001"
@@ -56,7 +56,7 @@ services:
       start_period: 40s
     labels:
       # BLUE API Router - Active Production (higher priority)
-      - "traefik.http.routers.accounts-api-blue.rule=Host(`accounts.mojo-institut.de`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.accounts-api-blue.rule=Host(`account.mojo-institut.de`) && PathPrefix(`/api`)"
       - "traefik.http.routers.accounts-api-blue.entrypoints=websecure"
       - "traefik.http.routers.accounts-api-blue.tls.certresolver=letsencrypt"
       - "traefik.http.routers.accounts-api-blue.service=accounts-api-blue"
@@ -76,7 +76,7 @@ services:
       NODE_ENV: production
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://accounts.mojo-institut.de}
+            NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://account.mojo-institut.de}
       NEXT_PUBLIC_PAYMENTS_API_URL: ${NEXT_PUBLIC_PAYMENTS_API_URL:-https://payments.mojo-institut.de/api}
     expose:
       - "3020"
@@ -90,7 +90,7 @@ services:
       start_period: 60s
     labels:
       # BLUE Web Router - Active Production (higher priority)
-      - "traefik.http.routers.accounts-web-blue.rule=Host(`accounts.mojo-institut.de`)"
+      - "traefik.http.routers.accounts-web-blue.rule=Host(`account.mojo-institut.de`)"
       - "traefik.http.routers.accounts-web-blue.entrypoints=websecure"
       - "traefik.http.routers.accounts-web-blue.tls.certresolver=letsencrypt"
       - "traefik.http.routers.accounts-web-blue.service=accounts-web-blue"

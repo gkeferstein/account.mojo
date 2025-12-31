@@ -43,7 +43,7 @@ und dieses Projekt adhäriert zu [Semantic Versioning](https://semver.org/lang/d
   - Manuelle Verteilung der Einladungslinks erforderlich
 
 ### Infrastructure
-- Production Domain: `accounts.mojo-institut.de`
+- Production Domain: `account.mojo-institut.de`
 - Development Domain: `dev.account.mojo-institut.de`
 - Docker Network: `mojo-network` (shared mit anderen MOJO Services)
 - Health Endpoints: `/api/v1/health`, `/api/v1/health/detailed`, `/api/v1/ready`, `/api/v1/live`

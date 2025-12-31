@@ -825,25 +825,25 @@ jobs:
     if: needs.build-images-release.result == 'success'
     environment:
       name: production
-      url: https://accounts.mojo-institut.de
+      url: https://account.mojo-institut.de
 
     steps:
       - name: Check SSH Secret
         id: check-ssh
         run: |
-          if [ -z "${{ secrets.PROD_SERVER_SSH_KEY }}" ]; then
+          if [ -z "${{ secrets.PROD_SSH_KEY }}" ]; then
             echo "ssh_available=false" >> $GITHUB_OUTPUT
-            echo "⚠️ PROD_SERVER_SSH_KEY secret not found"
+            echo "⚠️ PROD_SSH_KEY secret not found"
           else
             echo "ssh_available=true" >> $GITHUB_OUTPUT
-            echo "✅ PROD_SERVER_SSH_KEY secret found"
+            echo "✅ PROD_SSH_KEY secret found"
           fi
 
       - name: Setup SSH
         if: steps.check-ssh.outputs.ssh_available == 'true'
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.PROD_SERVER_SSH_KEY }}
+          ssh-private-key: ${{ secrets.PROD_SSH_KEY }}
 
       - name: Add server to known hosts
         if: steps.check-ssh.outputs.ssh_available == 'true'
@@ -965,14 +965,14 @@ jobs:
         if: steps.check-ssh.outputs.ssh_available == 'true'
         run: |
           sleep 30
-          curl -f https://accounts.mojo-institut.de/api/v1/health || exit 1
+          curl -f https://account.mojo-institut.de/api/v1/health || exit 1
           echo "✅ Health check passed!"
 
       - name: Deployment Skipped
         if: steps.check-ssh.outputs.ssh_available == 'false'
         run: |
-          echo "⚠️ Deployment skipped - PROD_SERVER_SSH_KEY secret not configured"
-          echo "Please configure PROD_SERVER_SSH_KEY and PROD_SERVER_HOST secrets in the production environment"
+          echo "⚠️ Deployment skipped - PROD_SSH_KEY secret not configured"
+          echo "Please configure PROD_SSH_KEY and PROD_SERVER_HOST secrets in the production environment"
           exit 0
 
   # ============================================
