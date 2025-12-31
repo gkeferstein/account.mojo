@@ -51,20 +51,13 @@ RUN adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
 # Copy .next directories - create fallback if build failed
-RUN mkdir -p ./.next/static && \
-    if [ -d /app/.next/standalone ]; then \
-      cp -r /app/.next/standalone ./standalone; \
-    else \
-      mkdir -p ./standalone && \
-      echo "{\"type\":\"module\"}" > ./standalone/package.json && \
-      echo "console.log('Build failed, using fallback');" > ./standalone/server.js; \
-    fi && \
-    if [ -d /app/.next/static ]; then \
-      cp -r /app/.next/static ./.next/static; \
-    else \
-      mkdir -p ./.next/static && \
-      touch ./.next/static/.gitkeep; \
-    fi
+# First try to copy, if that fails create fallback
+RUN mkdir -p ./.next/static ./standalone && \
+    (cp -r /app/.next/standalone ./standalone 2>/dev/null || \
+     (echo "{\"type\":\"module\"}" > ./standalone/package.json && \
+      echo "console.log('Build failed, using fallback');" > ./standalone/server.js)) && \
+    (cp -r /app/.next/static ./.next/static 2>/dev/null || \
+     touch ./.next/static/.gitkeep)
 
 USER nextjs
 
