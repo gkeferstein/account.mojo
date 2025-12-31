@@ -79,7 +79,7 @@ services:
     container_name: accounts-web-staging
     build:
       context: /root/projects
-      dockerfile: accounts.mojo/apps/web/Dockerfile
+      dockerfile: accounts.mojo/Dockerfile
       args:
         - NEXT_PUBLIC_API_URL=https://account.staging.mojo-institut.de
         - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
