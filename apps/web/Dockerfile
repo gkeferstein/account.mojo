@@ -5,7 +5,7 @@ WORKDIR /app
 FROM base AS deps
 
 # Copy package.json
-COPY accounts.mojo/apps/web/package.json ./
+COPY apps/web/package.json ./
 
 # Create .npmrc from build arg (token passed from CI)
 ARG NPM_TOKEN
@@ -22,13 +22,13 @@ RUN sed -i '/@mojo\/design/d' package.json
 # Install other dependencies
 RUN npm install --legacy-peer-deps
 
-# Copy the @mojo/design package manually
-COPY design.mojo/packages/design ./node_modules/@mojo/design
+# Copy the @mojo/design package manually (if exists)
+COPY design.mojo/packages/design* ./node_modules/@mojo/design 2>/dev/null || true
 
 # Build
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
-COPY accounts.mojo/apps/web/ .
+COPY apps/web/ .
 
 # Build-time environment variables
 ARG NEXT_PUBLIC_API_URL
