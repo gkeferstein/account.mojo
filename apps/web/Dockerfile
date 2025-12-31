@@ -13,11 +13,20 @@ RUN if [ -n "$NPM_TOKEN" ]; then \
       echo "@gkeferstein:registry=https://npm.pkg.github.com" > .npmrc && \
       echo "//npm.pkg.github.com/:_authToken=$NPM_TOKEN" >> .npmrc && \
       echo "always-auth=true" >> .npmrc && \
-      cp .npmrc /root/.npmrc; \
+      cp .npmrc /root/.npmrc && \
+      echo "✅ .npmrc created for GitHub Packages"; \
+    else \
+      echo "⚠️ NPM_TOKEN not provided, .npmrc not created"; \
     fi
 
 # Install dependencies (including @gkeferstein/design from GitHub Packages)
-RUN npm install --legacy-peer-deps
+RUN echo "🔍 Starting npm install..." && \
+    npm install --legacy-peer-deps 2>&1 | tee /tmp/npm-install.log || { \
+      echo "❌ npm install failed. Log:"; \
+      cat /tmp/npm-install.log; \
+      exit 1; \
+    } && \
+    echo "✅ npm install completed successfully"
 
 # Build
 FROM base AS builder
