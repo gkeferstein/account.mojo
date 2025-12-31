@@ -861,7 +861,7 @@ jobs:
           export VERSION="${{ needs.prepare-release.outputs.version }}"
           export VERSION_SHORT="${{ needs.prepare-release.outputs.version_short }}"
           
-          ssh -T -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER }} \
+          ssh -T -o StrictHostKeyChecking=no root@${{ secrets.PROD_SERVER_HOST }} \
             REGISTRY="${REGISTRY}" \
             GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
             GITHUB_ACTOR="${GITHUB_ACTOR}" \
