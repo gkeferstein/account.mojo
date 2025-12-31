@@ -15,7 +15,7 @@ WORKDIR /app/packages/shared
 # Build arg for npm token (must be declared in each stage)
 ARG NPM_TOKEN
 
-COPY accounts.mojo/packages/shared/ ./
+COPY packages/shared/ ./
 
 # Create .npmrc from build arg (token passed from CI)
 RUN if [ -n "$NPM_TOKEN" ]; then \
@@ -36,8 +36,8 @@ WORKDIR /app/apps/api
 ARG NPM_TOKEN
 
 # Copy package.json und modifiziere es (entferne lokale dependencies)
-COPY accounts.mojo/apps/api/package*.json ./
-COPY accounts.mojo/apps/api/prisma ./prisma/
+COPY apps/api/package*.json ./
+COPY apps/api/prisma ./prisma/
 
 # Create .npmrc from build arg (token passed from CI)
 RUN if [ -n "$NPM_TOKEN" ]; then \
@@ -66,7 +66,7 @@ RUN mkdir -p /app/apps/api/node_modules/@accounts && \
     ln -s /app/packages/shared /app/apps/api/node_modules/@accounts/shared
 
 # Copy API source und build (ignore type errors, emit anyway)
-COPY accounts.mojo/apps/api/ ./
+COPY apps/api/ ./
 RUN npm run build || [ -d ./dist ]
 
 # ===========================================
@@ -91,7 +91,7 @@ WORKDIR /app/apps/api
 COPY --from=api-deps /app/apps/api/node_modules ./node_modules
 COPY --from=api-builder /app/apps/api/dist ./dist
 COPY --from=api-builder /app/apps/api/prisma ./prisma
-COPY accounts.mojo/apps/api/package*.json ./
+COPY apps/api/package*.json ./
 
 # Link shared package
 RUN mkdir -p ./node_modules/@accounts && \
