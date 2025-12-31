@@ -16,18 +16,8 @@ RUN if [ -n "$NPM_TOKEN" ]; then \
       cp .npmrc /root/.npmrc; \
     fi
 
-# Remove @mojo/design and @gkeferstein/design from package.json so npm install doesn't fail
-RUN sed -i '/@mojo\/design/d' package.json && \
-    sed -i '/@gkeferstein\/design/d' package.json
-
-# Install other dependencies
+# Install dependencies (including @gkeferstein/design from GitHub Packages)
 RUN npm install --legacy-peer-deps
-
-# Copy the @mojo/design package manually (if available from checkout)
-# Also copy as @gkeferstein/design for compatibility
-RUN mkdir -p ./node_modules/@mojo/design ./node_modules/@gkeferstein/design
-COPY design.mojo/packages/design ./node_modules/@mojo/design
-COPY design.mojo/packages/design ./node_modules/@gkeferstein/design
 
 # Build
 FROM base AS builder
