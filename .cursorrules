@@ -1,30 +1,47 @@
-# accounts.mojo - Cursor Rules
+# account.mojo - Cursor Rules
 
-> **Globale Standards:** `/root/projects/CODING_STANDARDS.md`
+## ⚠️ PFLICHT: Platform Standards
 
-## Projekt-Info
+Dieses Projekt MUSS sich an die Standards in `platform.mojo` halten:
 
-- **Typ:** Account/User Management (SSOT für Tenants)
-- **Domain:** account.mojo-institut.de
-- **Stack:** Next.js + Fastify + Prisma
+- **Ökosystem:** /root/projects/platform.mojo/docs/MOJO_ECOSYSTEM.md
+- **Coding Standards:** /root/projects/platform.mojo/docs/CODING_STANDARDS.md
+- **Staging Konvention:** /root/projects/platform.mojo/docs/STAGING_SERVER_CONVENTION.md
+- **Lokale Entwicklung:** /root/projects/platform.mojo/docs/LOCAL_DEVELOPMENT.md
+- **Brand Guidelines:** /root/projects/platform.mojo/docs/brand/
 
-## Architektur
+## URLs
 
-```
-apps/
-├── web/        # Frontend (Next.js)
-└── api/        # Backend API (Fastify)
-packages/
-└── shared/     # Shared Types
-```
+- **Staging:** https://account.staging.mojo-institut.de
+- **Production:** https://account.mojo-institut.de
 
-## Wichtige Patterns
+## Code-Prinzipien
 
-1. **Single Source of Truth:** Tenant-Daten werden hier verwaltet
-2. **Auth:** Clerk JWT + Clerk Webhooks für User/Org Sync
-3. **Multitenancy:** `@mojo/tenant` Middleware
+- TypeScript ES6+ mit striktem Typing
+- DRY - Keine Code-Duplikation
+- Einfachheit vor Komplexität
+- Health Check Endpoint ist PFLICHT (`/health`)
 
-## Service-to-Service
+## Design System
 
-Andere Apps rufen accounts.mojo für Tenant-Daten:
-- Headers: `x-tenant-id`, `x-tenant-slug`, `x-service-name`
+- `@gkeferstein/design` Package verwenden
+- MOJO-Terminologie beachten (siehe MOJO_GLOSSARY.md)
+- Voice & Tone Guidelines befolgen
+
+## CI/CD
+
+- Push zu `main` → Staging Deployment
+- Release Tag `v*.*.*` → Production Deployment
+- Feature Branches → CI ohne Deployment (ci-pr.yml)
+
+## GitHub Secrets (PFLICHT!)
+
+- `STAGING_SERVER` - Staging Server
+- `STAGING_SSH_KEY` - SSH Key für Staging
+- `PRODUCTION_SERVER` - Production Server
+- `PRODUCTION_SSH_KEY` - SSH Key für Production
+- `GHCR_TOKEN` - GitHub Container Registry
+
+## Referenzen
+
+Repository: https://github.com/gkeferstein/platform.mojo
