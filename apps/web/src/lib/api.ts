@@ -1,13 +1,5 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3005";
 
-export interface ApiError {
-  error: string;
-  message: string;
-  code?: string;
-  details?: Record<string, unknown>;
-  statusCode?: number;
-}
-
 export class ApiError extends Error {
   error: string;
   code?: string;

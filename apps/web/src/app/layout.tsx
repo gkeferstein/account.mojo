@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "next-themes";
-import { light } from "@clerk/themes";
+// Note: @clerk/themes doesn't export 'light' anymore, using appearance variables instead
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { TenantProvider } from "@/providers/TenantProvider";
@@ -50,7 +50,6 @@ export default function RootLayout({
       signInFallbackRedirectUrl="/"
       signUpFallbackRedirectUrl="/"
       appearance={{
-        baseTheme: light,
         variables: {
           colorPrimary: "hsl(262 83% 58%)",
           colorBackground: "hsl(0 0% 100%)",

@@ -16,7 +16,7 @@ import { accountsApi } from '@/lib/api';
 
 describe('React Query Integration', () => {
   let queryClient: QueryClient;
-  let wrapper: ({ children }: { children: ReactNode }) => JSX.Element;
+  let wrapper: ({ children }: { children: ReactNode }) => React.JSX.Element;
 
   beforeEach(() => {
     queryClient = new QueryClient({

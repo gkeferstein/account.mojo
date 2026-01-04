@@ -82,7 +82,7 @@ export function Header() {
   // IMPORTANT: Always pass the current tenant to MojoTopbar, even if there's only one
   // This ensures MojoTopbar uses our data instead of fetching from Clerk directly
   // If we don't pass tenant, MojoTopbar might use useOrganization() internally
-  const tenantToPass = activeTenant ? currentTenant : undefined;
+  const tenantToPass = activeTenant ? currentTenant : null;
 
   return (
     <MojoTopbar
