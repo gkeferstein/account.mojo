@@ -1,24 +1,21 @@
 'use client';
 
-import { SignIn } from '@clerk/nextjs';
+import { SignUp } from '@clerk/nextjs';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useAuth } from '@clerk/nextjs';
 
 /**
- * Sign-In Page für accounts.mojo
+ * Sign-Up Page für accounts.mojo
  * 
- * Implementiert gemäß platform.mojo CODING_STANDARDS.md Section 3.6:
- * - Standard Clerk <SignIn /> Komponente
- * - Redirect-Logik mit Query-Parameter-Support
- * - Client-Side Fallback für Redirects (wenn Middleware nicht greift)
+ * Verwendet hash-basiertes Routing für Clerk Multi-Step-Auth
  */
-export default function SignInPage() {
+function SignUpContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { isLoaded, isSignedIn } = useAuth();
 
-  // Client-Side Fallback Redirect (wenn Middleware nicht greift)
+  // Client-Side Fallback Redirect
   useEffect(() => {
     if (isLoaded && isSignedIn) {
       const redirectUrl = searchParams.get('redirect_url') || '/';
@@ -26,7 +23,7 @@ export default function SignInPage() {
     }
   }, [isLoaded, isSignedIn, router, searchParams]);
 
-  // Wenn bereits eingeloggt, zeige Loading (Middleware sollte redirecten)
+  // Wenn bereits eingeloggt, zeige Loading
   if (isLoaded && isSignedIn) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -38,16 +35,14 @@ export default function SignInPage() {
     );
   }
 
-  // Redirect URL aus Query-Parameter oder Standard-Route
   const redirectUrl = searchParams.get('redirect_url') || '/';
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
-      <SignIn
-        routing="path"
-        path="/sign-in"
-        signUpUrl="/sign-up"
-        afterSignInUrl={redirectUrl}
+      <SignUp
+        routing="hash"
+        signInUrl="/sign-in"
+        fallbackRedirectUrl={redirectUrl}
         appearance={{
           elements: {
             rootBox: 'mx-auto',
@@ -56,6 +51,20 @@ export default function SignInPage() {
         }}
       />
     </div>
+  );
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="mb-4">Laden...</div>
+        </div>
+      </div>
+    }>
+      <SignUpContent />
+    </Suspense>
   );
 }
 

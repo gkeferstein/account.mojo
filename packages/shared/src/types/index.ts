@@ -178,6 +178,8 @@ export interface PaginatedResponse<T> {
 }
 
 // Session Types
+export type PlatformRole = 'platform_admin' | 'platform_support' | 'platform_finance' | 'platform_content_admin' | null;
+
 export interface SessionUser {
   id: string;
   clerkUserId: string;
@@ -185,6 +187,7 @@ export interface SessionUser {
   firstName: string | null;
   lastName: string | null;
   avatarUrl: string | null;
+  platformRole: PlatformRole;
 }
 
 export interface SessionTenant {

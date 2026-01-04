@@ -443,6 +443,96 @@ Client: `apps/api/src/clients/crm.ts`
                                └─────────────────────────┘
 ```
 
+### Email Service (Resend - Zentral für alle MOJO Apps)
+
+**accounts.mojo ist der zentrale E-Mail-Service** für alle MOJO Apps.
+Andere Services (payments.mojo, kontakte.mojo, etc.) senden E-Mails über die Internal API.
+
+Service: `apps/api/src/services/email.service.ts`
+
+**Features:**
+- ✅ Respektiert Benutzer-Präferenzen (Newsletter, Marketing, etc.)
+- ✅ Zentrale Template-Verwaltung
+- ✅ Einheitliches Branding
+- ✅ Rate-Limiting & Monitoring
+- ✅ Internal API für andere Services
+
+**Verwendung in account.mojo:**
+```typescript
+import { sendEmail, sendTenantInvitationEmail } from '../services/email.service.js';
+
+// Tenant-Einladung
+await sendTenantInvitationEmail({
+  to: 'user@example.com',
+  tenantName: 'Mein Team',
+  inviterName: 'Max Mustermann',
+  role: 'admin',
+  inviteUrl: 'https://...',
+  expiresAt: new Date('2024-12-31'),
+});
+
+// Generische E-Mail mit Präferenzen-Check
+await sendEmail({
+  to: 'user@example.com',
+  subject: 'Newsletter',
+  template: 'newsletter',
+  data: { ... },
+  checkPreferences: {
+    clerkUserId: 'user_xxx',
+    tenantId: 'tenant_xxx',
+    preferenceType: 'newsletter',
+  },
+});
+```
+
+**Verwendung von anderen Services (payments.mojo, kontakte.mojo):**
+```bash
+POST /api/internal/email/send
+Headers:
+  X-Internal-Token: <INTERNAL_API_SECRET>
+Body:
+{
+  "to": "user@example.com",
+  "subject": "Rechnung #123",
+  "template": "invoice",
+  "data": {
+    "invoiceNumber": "INV-123",
+    "amount": "99,00",
+    "currency": "EUR",
+    ...
+  },
+  "checkPreferences": {
+    "clerkUserId": "user_xxx",
+    "tenantId": "tenant_xxx",
+    "preferenceType": "emailNotifications"
+  }
+}
+```
+
+**Verfügbare Templates:**
+- `tenant-invitation` - Team-Einladungen
+- `invoice` - Rechnungen
+- `subscription-update` - Abo-Updates
+- `newsletter` - Newsletter
+- `marketing` - Marketing-E-Mails
+- `product-update` - Produkt-Updates
+- `security-alert` - Sicherheitsbenachrichtigungen
+- `welcome` - Willkommens-E-Mails
+- `password-reset` - Passwort-Reset
+- `account-deleted` - Account-Löschung
+
+**Präferenzen-Typen:**
+- `newsletter` - Newsletter & Updates
+- `marketingEmails` - Marketing & Angebote
+- `productUpdates` - Produkt-Updates
+- `emailNotifications` - Wichtige Account-Benachrichtigungen (Standard: immer senden)
+
+**Konfiguration:**
+```bash
+RESEND_API_KEY=re_xxxx  # Von https://resend.com/api-keys
+EMAIL_FROM=MOJO Institut <noreply@mojo-institut.de>
+```
+
 ### Mock-Modus
 
 Für lokale Entwicklung ohne externe Services:
@@ -661,9 +751,11 @@ WEBHOOK_SECRET_CRM=<openssl rand -hex 32>
 # Internal API
 INTERNAL_API_SECRET=<openssl rand -hex 32>
 
-# Email (optional)
-EMAIL_FROM=noreply@mojo-institut.de
-SENDGRID_API_KEY=<key>
+# Email Service (Resend - zentral für alle MOJO Apps)
+RESEND_API_KEY=re_xxxx  # Von https://resend.com/api-keys
+EMAIL_FROM=MOJO Institut <noreply@mojo-institut.de>
+# Legacy SendGrid (deprecated)
+# SENDGRID_API_KEY=<key>
 
 # Environment
 NODE_ENV=production
@@ -791,6 +883,41 @@ Bei mehreren Routen auf derselben Domain (z.B. `/` und `/api`):
 - **Aktuelle Version:** 0.3.0
 - **Changelog:** Siehe [CHANGELOG.md](./CHANGELOG.md)
 - **Deployment Guide:** Siehe [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)
+
+---
+
+## Email Service
+
+> **📧 Zentrale E-Mail-Versendung für alle MOJO Apps**
+
+accounts.mojo ist der zentrale E-Mail-Service für das gesamte MOJO Ökosystem. Alle E-Mails werden über Resend versendet und respektieren automatisch die Benutzer-Präferenzen.
+
+**Dokumentation:**
+- [Email Service Dokumentation](./docs/EMAIL_SERVICE.md) - Vollständige Anleitung
+- [Platform.mojo Dokumentation](./docs/PLATFORM_MOJO_DOCUMENTATION.md) - Für andere Services
+
+**Schnellstart:**
+```typescript
+import { sendEmail } from '../services/email.service.js';
+
+await sendEmail({
+  to: 'user@example.com',
+  subject: 'Newsletter',
+  template: 'newsletter',
+  data: { ... },
+  checkPreferences: {
+    clerkUserId: 'user_xxx',
+    tenantId: 'tenant_xxx',
+    preferenceType: 'newsletter',
+  },
+});
+```
+
+**Für andere Services (payments.mojo, kontakte.mojo):**
+```bash
+POST /api/internal/email/send
+X-Internal-Token: <INTERNAL_API_SECRET>
+```
 
 ---
 

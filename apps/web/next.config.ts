@@ -1,9 +1,16 @@
 import type { NextConfig } from "next";
 
 // Bundle Analyzer (optional, aktivieren mit ANALYZE=true)
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true',
-});
+let withBundleAnalyzer: (config: NextConfig) => NextConfig = (config) => config;
+try {
+  const bundleAnalyzer = require('@next/bundle-analyzer')({
+    enabled: process.env.ANALYZE === 'true',
+  });
+  withBundleAnalyzer = bundleAnalyzer;
+} catch {
+  // Bundle Analyzer not installed - skip it
+  console.warn('@next/bundle-analyzer not found, skipping bundle analysis');
+}
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -39,7 +46,7 @@ const nextConfig: NextConfig = {
   },
 
   // Transpile shared packages
-  transpilePackages: ["@accounts/shared"],
+  transpilePackages: ["@accounts/shared", "@tanstack/react-query"],
 };
 
 export default withBundleAnalyzer(nextConfig);

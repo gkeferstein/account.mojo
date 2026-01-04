@@ -82,22 +82,73 @@ function toMojoTenant(tenant: Tenant): MojoTenant {
 // Get or create user from Clerk JWT
 // Also ensures a personal tenant exists (fallback if webhook failed)
 async function getOrCreateUser(clerkUserId: string, email: string, firstName?: string | null, lastName?: string | null, avatarUrl?: string | null): Promise<User> {
+  // First, try to find by clerkUserId
   let user = await prisma.user.findUnique({
     where: { clerkUserId },
   });
 
+  // If not found by clerkUserId, try to find by email (in case clerkUserId changed)
+  if (!user && email) {
+    user = await prisma.user.findUnique({
+      where: { email },
+    });
+    
+    // If found by email but clerkUserId doesn't match, update it
+    if (user && user.clerkUserId !== clerkUserId) {
+      appLogger.warn('User found by email but clerkUserId mismatch, updating', {
+        userId: user.id,
+        oldClerkUserId: user.clerkUserId,
+        newClerkUserId: clerkUserId,
+      });
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { clerkUserId },
+      });
+    }
+  }
+
   if (!user) {
     // Create new user
-    user = await prisma.user.create({
-      data: {
-        clerkUserId,
-        email,
-        firstName,
-        lastName,
-        avatarUrl,
-      },
-    });
-    appLogger.info('User created via JWT auth', { clerkUserId });
+    try {
+      user = await prisma.user.create({
+        data: {
+          clerkUserId,
+          email,
+          firstName,
+          lastName,
+          avatarUrl,
+        },
+      });
+      appLogger.info('User created via JWT auth', { clerkUserId });
+    } catch (error: any) {
+      // If unique constraint fails (email already exists), try to find and update
+      if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
+        appLogger.warn('User creation failed due to email conflict, trying to find and update', {
+          email,
+          clerkUserId,
+        });
+        user = await prisma.user.findUnique({
+          where: { email },
+        });
+        if (user) {
+          // Update existing user with new clerkUserId
+          user = await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              clerkUserId,
+              firstName,
+              lastName,
+              avatarUrl,
+            },
+          });
+          appLogger.info('User updated with new clerkUserId', { userId: user.id, clerkUserId });
+        } else {
+          throw error; // Re-throw if we can't find the user
+        }
+      } else {
+        throw error; // Re-throw other errors
+      }
+    }
   } else {
     // Update user info if changed
     if (user.email !== email || user.firstName !== firstName || user.lastName !== lastName || user.avatarUrl !== avatarUrl) {
@@ -424,6 +475,38 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
 
     const token = authHeader.substring(7);
 
+    // DEBUG: Try to decode token without verification to see what's in it
+    if (env.NODE_ENV === 'development') {
+      try {
+        // JWT has format: header.payload.signature
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          // Decode base64url header and payload (without verification)
+          const header = JSON.parse(Buffer.from(parts[0].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString());
+          const payload = JSON.parse(Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString());
+          
+          appLogger.info('DEBUG: Token decoded (without verification)', {
+            header,
+            payload: {
+              sub: payload.sub,
+              azp: payload.azp || null,
+              org_id: payload.org_id || null,
+              exp: payload.exp ? new Date(payload.exp * 1000).toISOString() : null,
+              iat: payload.iat ? new Date(payload.iat * 1000).toISOString() : null,
+              iss: payload.iss || null,
+            },
+            isExpired: payload.exp ? payload.exp * 1000 < Date.now() : false,
+          });
+        } else {
+          appLogger.warn('DEBUG: Token does not have 3 parts', { partsCount: parts.length });
+        }
+      } catch (decodeError) {
+        appLogger.warn('DEBUG: Failed to decode token (without verification)', {
+          error: decodeError instanceof Error ? decodeError.message : String(decodeError),
+        });
+      }
+    }
+
     // In development without Clerk, allow mock auth
     if (!env.CLERK_SECRET_KEY && env.NODE_ENV === 'development') {
       appLogger.warn('Using mock authentication - Clerk not configured', {
@@ -464,9 +547,80 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
       return reply.status(500).send({ error: 'Server Error', message: 'Clerk not configured' });
     }
 
-    const payload = await verifyToken(token, {
-      secretKey: env.CLERK_SECRET_KEY,
-    });
+    // DEBUG: Log token verification attempt
+    if (env.NODE_ENV === 'development') {
+      appLogger.info('DEBUG: Attempting token verification', {
+        tokenLength: token.length,
+        tokenPrefix: token.substring(0, 50),
+        hasSecretKey: !!env.CLERK_SECRET_KEY,
+        secretKeyPrefix: env.CLERK_SECRET_KEY.substring(0, 20),
+        secretKeyLength: env.CLERK_SECRET_KEY.length,
+        secretKeyValid: env.CLERK_SECRET_KEY.startsWith('sk_test_') || env.CLERK_SECRET_KEY.startsWith('sk_live_'),
+      });
+    }
+
+    let payload;
+    try {
+      // TEMPORARY: In development, try without authorizedParties first
+      // This helps diagnose if authorizedParties is the issue
+      // TODO: Re-enable authorizedParties once we know the correct azp value from the token
+      let verifyOptions: any = {
+        secretKey: env.CLERK_SECRET_KEY,
+      };
+      
+      // Only add authorizedParties in production or if explicitly configured
+      // In development, we'll try without it first to see if that's the issue
+      if (env.NODE_ENV === 'production') {
+        const authorizedParties = [
+          env.FRONTEND_URL,
+          'https://account.mojo-institut.de',
+          'https://account.staging.mojo-institut.de',
+        ].filter(Boolean);
+        
+        if (authorizedParties.length > 0) {
+          verifyOptions.authorizedParties = authorizedParties;
+        }
+      }
+      
+      if (env.NODE_ENV === 'development') {
+        appLogger.info('DEBUG: verifyToken options (development - no authorizedParties)', {
+          hasAuthorizedParties: !!verifyOptions.authorizedParties,
+        });
+      }
+      
+      payload = await verifyToken(token, verifyOptions);
+      
+      if (env.NODE_ENV === 'development') {
+        appLogger.info('DEBUG: Token verified successfully', {
+          sub: payload.sub,
+          org_id: (payload as any).org_id || null,
+          azp: (payload as any).azp || null,
+        });
+      }
+    } catch (verifyError) {
+      const errorMessage = verifyError instanceof Error ? verifyError.message : String(verifyError);
+      const errorStack = verifyError instanceof Error ? verifyError.stack : undefined;
+      
+      appLogger.error('DEBUG: Token verification failed', {
+        error: errorMessage,
+        errorName: verifyError instanceof Error ? verifyError.name : 'Unknown',
+        stack: errorStack,
+        tokenLength: token.length,
+        tokenPrefix: token.substring(0, 50),
+        tokenSuffix: token.substring(token.length - 20),
+        hasSecretKey: !!env.CLERK_SECRET_KEY,
+        secretKeyLength: env.CLERK_SECRET_KEY.length,
+      });
+      
+      // Log the full error for debugging
+      console.error('[AUTH] Full verification error:', {
+        message: errorMessage,
+        name: verifyError instanceof Error ? verifyError.name : 'Unknown',
+        stack: errorStack,
+      });
+      
+      throw verifyError; // Re-throw to hit the outer catch
+    }
 
     const clerkUserId = payload.sub;
     const clerkOrgId = (payload as { org_id?: string }).org_id || null;

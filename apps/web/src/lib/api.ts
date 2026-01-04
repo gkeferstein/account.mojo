@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3005";
 
 export interface ApiError {
   error: string;
@@ -118,6 +118,7 @@ export const accountsApi = {
       firstName: string | null;
       lastName: string | null;
       avatarUrl: string | null;
+      platformRole: 'platform_admin' | 'platform_support' | 'platform_finance' | 'platform_content_admin' | null;
     };
     tenants: Array<{
       id: string;
@@ -328,6 +329,65 @@ export const accountsApi = {
 
   cancelDataRequest: (token: string, requestId: string) =>
     api.delete<{ success: boolean }>(`/api/v1/data/requests/${requestId}`, token),
+
+  // Admin - Resend Email Management
+  getResendEmails: (token: string, limit?: number, cursor?: string) =>
+    api.get<{
+      emails: Array<{
+        id: string;
+        from: string;
+        to: string[];
+        subject: string;
+        created_at: string;
+        last_event?: string;
+      }>;
+      hasMore: boolean;
+      nextCursor: string | null;
+    }>(`/api/v1/admin/resend/emails?limit=${limit || 50}${cursor ? `&cursor=${cursor}` : ''}`, token),
+
+  getResendEmail: (token: string, emailId: string) =>
+    api.get<{
+      id: string;
+      from: string;
+      to: string[];
+      subject: string;
+      html?: string;
+      text?: string;
+      created_at: string;
+      last_event?: string;
+    }>(`/api/v1/admin/resend/emails/${emailId}`, token),
+
+  sendResendEmail: (token: string, data: {
+    to: string | string[];
+    subject: string;
+    html?: string;
+    text?: string;
+    from?: string;
+    replyTo?: string;
+    tags?: string[];
+    metadata?: Record<string, string>;
+  }) => api.post<{ success: boolean; messageId?: string }>('/api/v1/admin/resend/emails/send', data, token),
+
+  getResendDomains: (token: string) =>
+    api.get<{
+      domains: Array<{
+        id: string;
+        name: string;
+        status: string;
+        created_at: string;
+      }>;
+    }>('/api/v1/admin/resend/domains', token),
+
+  getResendStats: (token: string) =>
+    api.get<{
+      total: number;
+      sent: number;
+      delivered: number;
+      bounced: number;
+      complained: number;
+      opened: number;
+      clicked: number;
+    }>('/api/v1/admin/resend/stats', token),
 };
 
 export default api;

@@ -5,6 +5,8 @@ import { requireRole, requireTenantAccess, requireMemberManagement, canChangeRol
 import { logAuditEvent, AuditActions } from '../services/audit.js';
 import { generateSlug, generateInviteToken, createTenantSchema, updateTenantSchema, inviteMemberSchema, updateMemberRoleSchema, paginationSchema } from '@accounts/shared';
 import { TenantRole } from '@prisma/client';
+import { appLogger } from '../lib/logger.js';
+import env from '../lib/env.js';
 
 export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /tenants - List user's tenants
@@ -307,7 +309,27 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
         metadata: { email: input.email, role: input.role },
       });
 
-      // TODO: Send invitation email via email provider
+      // Send invitation email
+      try {
+        const { sendTenantInvitationEmail } = await import('../services/email.service.js');
+        await sendTenantInvitationEmail({
+          to: input.email,
+          tenantName: tenant.name,
+          inviterName: auth.user.firstName && auth.user.lastName
+            ? `${auth.user.firstName} ${auth.user.lastName}`
+            : auth.user.email,
+          role: input.role,
+          inviteUrl: `${env.FRONTEND_URL}/invite?token=${invitation.token}`,
+          expiresAt: invitation.expiresAt,
+        });
+      } catch (error) {
+        // Log error but don't fail the invitation creation
+        appLogger.error('Failed to send invitation email', {
+          error: error instanceof Error ? error.message : String(error),
+          invitationId: invitation.id,
+          email: input.email,
+        });
+      }
 
       return reply.status(201).send({
         id: invitation.id,

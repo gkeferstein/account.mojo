@@ -62,13 +62,41 @@ export const env = {
   // Frontend URL (for CORS)
   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3004',
   
-  // Email (for invitations)
-  EMAIL_FROM: process.env.EMAIL_FROM || 'noreply@mojo-institut.de',
+  // Email (Resend - centralized email service for all MOJO apps)
+  EMAIL_FROM: process.env.EMAIL_FROM || 'MOJO Institut <noreply@mojo-institut.de>',
+  RESEND_API_KEY: process.env.RESEND_API_KEY || '',
+  // Legacy SendGrid (deprecated, use Resend instead)
   SENDGRID_API_KEY: process.env.SENDGRID_API_KEY || '',
 };
 
 export function validateEnv(): void {
   const required: (keyof typeof env)[] = ['DATABASE_URL'];
+  
+  // ALWAYS validate Clerk keys are not placeholders (this was causing 401 errors!)
+  const clerkSecretKey = env.CLERK_SECRET_KEY;
+  if (clerkSecretKey.includes('xxxx') || clerkSecretKey === 'sk_test_xxxx') {
+    console.error('\n' + '='.repeat(70));
+    console.error('❌ CLERK_SECRET_KEY ist ein Platzhalter-Wert!');
+    console.error('');
+    console.error('   Die API kann JWT-Tokens nicht verifizieren.');
+    console.error('   Das führt zu 401 Unauthorized Fehlern.');
+    console.error('');
+    console.error('   Lösung:');
+    console.error('   1. Führe aus: ./scripts/setup-env.sh');
+    console.error('   2. Oder kopiere den echten Key von apps/web/.env.local in .env');
+    console.error('='.repeat(70) + '\n');
+    throw new Error('CLERK_SECRET_KEY has placeholder value - API cannot verify tokens!');
+  }
+  
+  // Validate Clerk key format
+  if (clerkSecretKey && !clerkSecretKey.startsWith('sk_test_') && !clerkSecretKey.startsWith('sk_live_')) {
+    console.error('\n' + '='.repeat(70));
+    console.error('❌ CLERK_SECRET_KEY hat ein ungültiges Format!');
+    console.error('   Erwartet: sk_test_... oder sk_live_...');
+    console.error('   Erhalten: ' + clerkSecretKey.substring(0, 20) + '...');
+    console.error('='.repeat(70) + '\n');
+    throw new Error('CLERK_SECRET_KEY has invalid format');
+  }
   
   // In production, require Clerk keys and validate configuration
   if (env.NODE_ENV === 'production') {

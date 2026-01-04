@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { timingSafeEqual } from 'crypto';
 import prisma from '../lib/prisma.js';
 import env from '../lib/env.js';
+import { appLogger } from '../lib/logger.js';
 
 // Internal API Authentication Middleware
 async function internalAuthMiddleware(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -323,6 +324,75 @@ export async function internalRoutes(fastify: FastifyInstance): Promise<void> {
     });
 
     return reply.send({ events });
+  });
+
+  // ==========================================
+  // Email Service Endpoints
+  // ==========================================
+
+  // POST /internal/email/send - Send email (for payments.mojo, kontakte.mojo, etc.)
+  fastify.post('/email/send', async (request, reply) => {
+    const body = request.body as {
+      to: string | string[];
+      subject: string;
+      template: string;
+      data: Record<string, any>;
+      from?: string;
+      replyTo?: string;
+      tags?: string[];
+      metadata?: Record<string, string>;
+      checkPreferences?: {
+        clerkUserId?: string;
+        tenantId?: string;
+        preferenceType?: 'newsletter' | 'marketingEmails' | 'productUpdates' | 'emailNotifications';
+      };
+    };
+
+    // Validate required fields
+    if (!body.to || !body.subject || !body.template) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Missing required fields: to, subject, template',
+      });
+    }
+
+    try {
+      const { sendEmail } = await import('../services/email.service.js');
+      const result = await sendEmail({
+        to: body.to,
+        subject: body.subject,
+        template: body.template as any,
+        data: body.data || {},
+        from: body.from,
+        replyTo: body.replyTo,
+        tags: body.tags,
+        metadata: body.metadata,
+        checkPreferences: body.checkPreferences,
+      });
+
+      if (result.success) {
+        return reply.send({
+          success: true,
+          messageId: result.messageId,
+          skipped: result.messageId === 'skipped',
+        });
+      } else {
+        return reply.status(500).send({
+          error: 'Failed to send email',
+          message: result.error,
+        });
+      }
+    } catch (error) {
+      appLogger.error('Failed to send email via internal API', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+
+      return reply.status(500).send({
+        error: 'Internal Server Error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   });
 }
 

@@ -62,7 +62,14 @@ export function Header() {
 
   // Handle tenant switching
   const handleTenantChange = useCallback(async (tenant: Tenant) => {
-    await switchTenant(tenant.id);
+    try {
+      await switchTenant(tenant.id);
+    } catch (error) {
+      // Error is already logged in TenantProvider
+      // The TenantProvider will rollback the change automatically
+      // We could show a toast here if needed, but for now just let it fail silently
+      console.error("[Header] Tenant switch failed:", error);
+    }
   }, [switchTenant]);
 
   // Show tenant switcher only if user has multiple tenants (at least Personal + 1 Org)

@@ -52,6 +52,7 @@ export async function meRoutes(fastify: FastifyInstance): Promise<void> {
         firstName: auth.user.firstName,
         lastName: auth.user.lastName,
         avatarUrl: auth.user.avatarUrl,
+        platformRole: auth.user.platformRole,
       },
       tenants: sessionTenants,
       activeTenantId: activeTenant?.id || null,

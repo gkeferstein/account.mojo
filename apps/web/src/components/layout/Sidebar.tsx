@@ -25,6 +25,7 @@ import {
   Bell,
   Sparkles,
   TrendingUp,
+  Mail,
 } from 'lucide-react';
 import { useTenant } from '@/providers/TenantProvider';
 import { useMemo } from 'react';
@@ -39,8 +40,11 @@ export interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
   const pathname = usePathname();
-  const { tenants, activeTenant } = useTenant();
+  const { tenants, activeTenant, user } = useTenant();
   const { getToken } = useToken();
+
+  // Check if user is platform admin
+  const isPlatformAdmin = user?.platformRole === 'platform_admin';
 
   // Check if active tenant is an organization (not personal)
   const isOrganizationTenant = activeTenant && !activeTenant.isPersonal;
@@ -177,7 +181,20 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
         },
       ],
     },
-  ], [isOrganizationTenant, hasCampusMembership]);
+    // Platform Admin Section - Resend Email Management
+    ...(isPlatformAdmin ? [{
+      id: 'platform-admin',
+      title: 'Platform Admin',
+      items: [
+        {
+          id: 'resend',
+          label: 'E-Mail Verwaltung',
+          icon: <Mail className="h-5 w-5" />,
+          href: '/admin/resend',
+        },
+      ],
+    }] : []),
+  ], [isOrganizationTenant, hasCampusMembership, isPlatformAdmin]);
 
   return (
     <UnifiedSidebar

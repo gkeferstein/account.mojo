@@ -2,7 +2,14 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
-import compress from '@fastify/compress';
+// @ts-ignore - Optional dependency, falls nicht installiert
+let compress: any;
+try {
+  compress = await import('@fastify/compress');
+} catch {
+  // Module not available - compression will be skipped
+  compress = null;
+}
 
 import env, { validateEnv } from './lib/env.js';
 import prisma from './lib/prisma.js';
@@ -20,6 +27,7 @@ import dataRoutes from './routes/data.js';
 import webhooksRoutes from './routes/webhooks.js';
 import clerkWebhooksRoutes from './routes/clerk-webhooks.js';
 import internalRoutes from './routes/internal.js';
+import adminRoutes from './routes/admin.js';
 
 // Validate environment variables
 try {
@@ -46,21 +54,32 @@ const fastify = Fastify({
 async function registerPlugins(): Promise<void> {
   // CORS - environment-based configuration
   const corsOrigins = [env.FRONTEND_URL];
-  // Only allow localhost in development
+  // Always allow localhost in development
   if (env.NODE_ENV === 'development') {
-    corsOrigins.push('http://localhost:3000');
+    corsOrigins.push(
+      'http://localhost:3000',
+      'http://localhost:3004', // account.mojo web
+      'http://127.0.0.1:3004'
+    );
   }
   
   await fastify.register(cors, {
-    origin: corsOrigins,
+    origin: corsOrigins.length > 0 ? corsOrigins : true, // Fallback: allow all in dev
     credentials: true,
   });
 
-  // Compression (gzip/deflate)
-  await fastify.register(compress, {
-    encodings: ['gzip', 'deflate'],
-    threshold: 1024, // Nur komprimieren wenn > 1KB
-  });
+  // Compression (gzip/deflate) - Optional
+  if (compress && compress.default) {
+    try {
+      await fastify.register(compress.default, {
+        encodings: ['gzip', 'deflate'],
+        threshold: 1024, // Nur komprimieren wenn > 1KB
+      });
+    } catch (error) {
+      // Compression not available - continue without it
+      appLogger.warn('Compression plugin not available, continuing without compression');
+    }
+  }
 
   // Security headers
   await fastify.register(helmet, {
@@ -103,6 +122,7 @@ async function registerRoutes(): Promise<void> {
     await protectedRoutes.register(billingRoutes);
     await protectedRoutes.register(entitlementsRoutes);
     await protectedRoutes.register(dataRoutes);
+    await protectedRoutes.register(adminRoutes, { prefix: '/admin' });
   }, { prefix: '/api/v1' });
 }
 
