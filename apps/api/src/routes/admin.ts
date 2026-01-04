@@ -210,9 +210,12 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     try {
-      // Get recent emails to calculate stats
-      const emailsResult = await resend.emails.list({ limit: 100 });
-      const emails = emailsResult.data || [];
+      // Get analytics to calculate stats
+      const analyticsResult = await resend.analytics.retrieve({
+        date_from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        date_to: new Date().toISOString().split('T')[0],
+      });
+      const emails: any[] = [];
 
       // Calculate stats
       const stats = {
