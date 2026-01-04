@@ -215,17 +215,15 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         date_from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         date_to: new Date().toISOString().split('T')[0],
       });
-      const emails: any[] = [];
-
-      // Calculate stats
+      // Calculate stats from analytics
       const stats = {
-        total: emails.length,
-        sent: emails.filter((e: any) => e.last_event === 'sent' || e.last_event === 'delivered').length,
-        delivered: emails.filter((e: any) => e.last_event === 'delivered').length,
-        bounced: emails.filter((e: any) => e.last_event === 'bounced').length,
-        complained: emails.filter((e: any) => e.last_event === 'complained').length,
-        opened: emails.filter((e: any) => e.last_event === 'opened').length,
-        clicked: emails.filter((e: any) => e.last_event === 'clicked').length,
+        total: analyticsResult?.emails_sent || 0,
+        sent: analyticsResult?.emails_sent || 0,
+        delivered: analyticsResult?.emails_delivered || 0,
+        bounced: analyticsResult?.emails_bounced || 0,
+        complained: analyticsResult?.emails_complained || 0,
+        opened: analyticsResult?.emails_opened || 0,
+        clicked: analyticsResult?.emails_clicked || 0,
       };
 
       return reply.send(stats);
