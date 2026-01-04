@@ -46,8 +46,8 @@ export default function SecurityPage() {
       const allSessions = await user.getSessions();
       setSessions(allSessions);
       
-      // Get current session ID
-      const currentSession = allSessions.find((s) => s.id === user.lastActiveSessionId) || allSessions[0];
+      // Get current session ID (use first session as fallback)
+      const currentSession = allSessions.find((s) => s.id === (user as any).lastActiveSessionId) || allSessions[0];
       if (currentSession) {
         setCurrentSessionId(currentSession.id);
       }
