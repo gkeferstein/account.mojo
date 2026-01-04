@@ -57,7 +57,26 @@ export default function ProfilePage() {
   const updateProfileMutation = useMutation({
     mutationFn: async (data: Partial<Profile>) => {
       const token = await getToken();
-      return accountsApi.updateProfile(token, data);
+      // Convert null to undefined for API compatibility
+      const apiData: Partial<{
+        firstName: string;
+        lastName: string;
+        phone: string;
+        company: string;
+        street: string;
+        city: string;
+        postalCode: string;
+        country: string;
+        vatId: string;
+      }> = {};
+      if (data.firstName !== undefined) apiData.firstName = data.firstName || undefined;
+      if (data.lastName !== undefined) apiData.lastName = data.lastName || undefined;
+      if (data.phone !== undefined) apiData.phone = data.phone || undefined;
+      if (data.street !== undefined) apiData.street = data.street || undefined;
+      if (data.city !== undefined) apiData.city = data.city || undefined;
+      if (data.postalCode !== undefined) apiData.postalCode = data.postalCode || undefined;
+      if (data.country !== undefined) apiData.country = data.country || undefined;
+      return accountsApi.updateProfile(token, apiData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
