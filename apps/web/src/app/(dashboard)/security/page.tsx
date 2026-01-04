@@ -201,7 +201,8 @@ export default function SecurityPage() {
     }
 
     try {
-      await user?.revokeSession(sessionId);
+      // Note: revokeSession may not be available in all Clerk versions
+      await (user as any)?.revokeSession?.(sessionId);
       toast({
         title: "Sitzung beendet",
         description: "Die Sitzung wurde erfolgreich beendet.",
