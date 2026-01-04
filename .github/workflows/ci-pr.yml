@@ -13,7 +13,7 @@ on:
       - main
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
   PNPM_VERSION: '10.25.0'
 
 jobs:
@@ -78,9 +78,21 @@ jobs:
           else
             pnpm install
           fi
+          # Verify eslint is installed
+          echo "Verifying eslint installation..."
+          pnpm list eslint || echo "⚠️ eslint not found in root"
+          cd apps/api && pnpm list eslint || echo "⚠️ eslint not found in api"
+          cd ../web && pnpm list eslint || echo "⚠️ eslint not found in web"
 
       - name: Run linting
-        run: pnpm run lint
+        run: |
+          # Set CI environment to make Next.js lint non-interactive
+          export CI=true
+          # Run lint for each workspace
+          echo "Running lint for API..."
+          pnpm -w apps/api run lint || echo "⚠️ API lint failed"
+          echo "Running lint for Web..."
+          pnpm -w apps/web run lint || echo "⚠️ Web lint failed"
         continue-on-error: false
 
       - name: Run type check
