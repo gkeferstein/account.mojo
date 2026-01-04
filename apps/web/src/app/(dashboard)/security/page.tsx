@@ -229,7 +229,7 @@ export default function SecurityPage() {
       const otherSessions = sessions.filter((s) => s.id !== currentSessionId);
       for (const session of otherSessions) {
         try {
-          await user?.revokeSession(session.id);
+          await (user as any)?.revokeSession?.(session.id);
         } catch (error) {
           console.error(`Failed to revoke session ${session.id}:`, error);
         }
