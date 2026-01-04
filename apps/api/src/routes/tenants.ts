@@ -309,19 +309,27 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
         metadata: { email: input.email, role: input.role },
       });
 
+      // Get tenant and auth for email
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { name: true },
+      });
+      const { auth } = request;
+
       // Send invitation email
-      try {
-        const { sendTenantInvitationEmail } = await import('../services/email.service.js');
-        await sendTenantInvitationEmail({
-          to: input.email,
-          tenantName: tenant.name,
-          inviterName: auth.user.firstName && auth.user.lastName
-            ? `${auth.user.firstName} ${auth.user.lastName}`
-            : auth.user.email,
-          role: input.role,
-          inviteUrl: `${env.FRONTEND_URL}/invite?token=${invitation.token}`,
-          expiresAt: invitation.expiresAt,
-        });
+      if (tenant && auth) {
+        try {
+          const { sendTenantInvitationEmail } = await import('../services/email.service.js');
+          await sendTenantInvitationEmail({
+            to: input.email,
+            tenantName: tenant.name,
+            inviterName: auth.user.firstName && auth.user.lastName
+              ? `${auth.user.firstName} ${auth.user.lastName}`
+              : auth.user.email,
+            role: input.role,
+            inviteUrl: `${env.FRONTEND_URL}/invite?token=${invitation.token}`,
+            expiresAt: invitation.expiresAt,
+          });
       } catch (error) {
         // Log error but don't fail the invitation creation
         appLogger.error('Failed to send invitation email', {

@@ -118,7 +118,13 @@ export async function processDataExport(
     // 2. Get consents from kontakte.mojo (SSOT)
     let consents: ConsentData[] = [];
     try {
-      consents = await crmClient.getConsents(clerkUserId) as ConsentData[];
+      const rawConsents = await crmClient.getConsents(clerkUserId);
+      consents = rawConsents.map((c) => ({
+        type: c.type,
+        granted: c.granted,
+        source: c.source || undefined,
+        grantedAt: c.grantedAt ? c.grantedAt.toISOString() : null,
+      }));
       appLogger.info('Fetched consents', {
         dataRequestId,
         consents_count: consents.length,
@@ -327,7 +333,8 @@ export async function processAccountDeletion(
       };
       appLogger.info('Anonymized customer in payments.mojo', {
         dataRequestId,
-        ...successDetails.payments,
+        customer_id: successDetails.payments?.customer_id || 'unknown',
+        anonymized_fields: successDetails.payments?.anonymized_fields || [],
       });
     } catch (error: unknown) {
       failures.push('payments.mojo');

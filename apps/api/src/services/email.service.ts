@@ -69,7 +69,7 @@ async function shouldSendEmail(
 
     if (!preferences?.payload) {
       // Default: send if preferences not set (opt-in for critical emails)
-      return preferenceType === 'emailNotifications' || preferenceType === 'security-alert';
+      return preferenceType === 'emailNotifications';
     }
 
     const prefs = preferences.payload as any;

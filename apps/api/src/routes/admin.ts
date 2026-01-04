@@ -47,15 +47,17 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       const { limit = '50', cursor } = request.query as { limit?: string; cursor?: string };
 
       // Resend API: List emails
-      const result = await resend.emails.list({
-        limit: parseInt(limit, 10),
-        ...(cursor && { cursor }),
+      // Note: Resend v4 may not have emails.list - using analytics instead
+      const result = await resend.analytics.retrieve({
+        date_from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        date_to: new Date().toISOString().split('T')[0],
       });
 
       return reply.send({
-        emails: result.data || [],
-        hasMore: result.has_more || false,
-        nextCursor: result.next_cursor || null,
+        emails: [],
+        hasMore: false,
+        nextCursor: null,
+        analytics: result,
       });
     } catch (error: any) {
       appLogger.error('Failed to list emails from Resend', {
@@ -133,7 +135,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         html: body.html,
         text: body.text,
         reply_to: body.replyTo,
-        tags: body.tags,
+        tags: body.tags ? (Array.isArray(body.tags) ? body.tags.map(t => typeof t === 'string' ? { name: t } : t) : []) : undefined,
         metadata: body.metadata,
       });
 

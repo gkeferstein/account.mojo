@@ -86,6 +86,16 @@ jobs:
           cd apps/api && pnpm list eslint || echo "⚠️ eslint not found in api"
           cd ../web && pnpm list eslint || echo "⚠️ eslint not found in web"
 
+      - name: Generate Prisma Client
+        working-directory: ./apps/api
+        run: |
+          if [ -d prisma ]; then
+            pnpm exec prisma generate || echo "⚠️ Prisma generate failed, but continuing..."
+          else
+            echo "ℹ️ No prisma directory found, skipping"
+          fi
+        continue-on-error: true
+
       - name: Run linting
         run: |
           # Set CI environment to make Next.js lint non-interactive
