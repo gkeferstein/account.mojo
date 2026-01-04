@@ -11,7 +11,7 @@ importers:
   apps/api:
     dependencies:
       '@accounts/shared':
-        specifier: workspace:*
+        specifier: *
         version: link:../../packages/shared
       '@clerk/backend':
         specifier: ^2.29.0
