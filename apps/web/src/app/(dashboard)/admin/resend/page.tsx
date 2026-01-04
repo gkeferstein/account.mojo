@@ -424,7 +424,7 @@ export default function ResendAdminPage() {
               )}
             </CardContent>
           </Card>
-        )}
+        </motion.div>
 
         {/* Email Details */}
         {selectedEmail && emailDetails && (

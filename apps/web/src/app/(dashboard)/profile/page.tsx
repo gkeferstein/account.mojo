@@ -9,7 +9,6 @@ import { useTenant } from "@/providers/TenantProvider";
 import { accountsApi, ApiError } from "@/lib/api";
 import { useToken } from "@/hooks/useToken";
 import { useApiError } from "@/hooks/useApiError";
-import { ApiError } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
