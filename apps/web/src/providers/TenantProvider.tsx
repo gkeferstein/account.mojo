@@ -98,8 +98,8 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       // Always skip cache on initial load to ensure we have a valid token
       let token = await getToken({ skipCache: skipCache || !hasInitialized });
       
-      // DEBUG: Log token info
-      if (process.env.NODE_ENV === 'development') {
+      // DEBUG: Log token info (only in development and only on initial load)
+      if (process.env.NODE_ENV === 'development' && !hasInitialized) {
         console.log("[TenantProvider] DEBUG token info:", {
           hasToken: !!token,
           tokenLength: token?.length || 0,
@@ -242,7 +242,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         throw new Error("Tenant not found");
       }
 
-      // Debug: Log switch attempt
+      // Debug: Log switch attempt (only in development)
       if (process.env.NODE_ENV === 'development') {
         console.log('[TenantProvider] Switching tenant:', {
           tenantId,
@@ -258,6 +258,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
       // Set active organization in Clerk (with error handling)
       // This will update the JWT to include org_id for future requests
+      // Note: Clerk errors are non-critical if the tenant exists in our database
       let clerkUpdateSuccess = true;
       try {
         if (setActive) {
@@ -271,12 +272,25 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         await new Promise(resolve => setTimeout(resolve, 200));
       } catch (clerkError: any) {
         clerkUpdateSuccess = false;
-        console.warn("[TenantProvider] Clerk setActive failed (non-critical):", clerkError);
         
-        // If it's a critical error (org not found), rollback
+        // Only log in development, don't spam console in production
+        if (process.env.NODE_ENV === 'development') {
+          console.warn("[TenantProvider] Clerk setActive failed (non-critical):", clerkError);
+        }
+        
+        // Check if this is a critical error that should prevent the switch
         const errorMessage = clerkError?.message || String(clerkError);
-        if (errorMessage.includes('not found') || errorMessage.includes('permission')) {
-          // Rollback optimistic update
+        const isCriticalError = errorMessage.includes('not found') || 
+                               errorMessage.includes('permission') ||
+                               errorMessage.includes('Forbidden') ||
+                               errorMessage.includes('403') ||
+                               errorMessage.includes('404');
+        
+        // Only rollback if it's a critical error AND we don't have a valid clerkOrgId
+        // If the tenant exists in our DB but not in Clerk, we can still proceed
+        // (this might happen for platform orgs or special tenants)
+        if (isCriticalError && !newActiveTenant.clerkOrgId && !newActiveTenant.isPersonal) {
+          // Rollback optimistic update only if we can't proceed
           if (previousTenant) {
             storeTenantId(previousTenant.id);
             setActiveTenant(previousTenant);
@@ -292,33 +306,43 @@ export function TenantProvider({ children }: { children: ReactNode }) {
             `Bitte stelle sicher, dass die Organisation in Clerk existiert und du Zugriff hast.`
           );
         }
-        // For other errors, continue but log warning
+        // For other errors or if we have a valid tenant in our DB, continue
+        // The API call will validate access, and if that succeeds, we're good
       }
 
       // Call API to switch tenant (with error handling)
+      // This is the authoritative check - if API succeeds, the switch is valid
       try {
         const token = await getToken({ skipCache: false }); // Use cached token for speed
         if (token) {
           await accountsApi.switchTenant(token, tenantId);
         }
       } catch (apiError: any) {
-        console.warn("[TenantProvider] API switchTenant failed:", apiError);
-        
-        // If API call fails but Clerk update succeeded, continue
-        // The session refresh will fix any inconsistencies
-        if (!clerkUpdateSuccess) {
-          // Both failed - rollback
-          if (previousTenant) {
-            storeTenantId(previousTenant.id);
-            setActiveTenant(previousTenant);
-          } else if (previousTenantId) {
-            storeTenantId(previousTenantId);
-          } else {
-            storeTenantId(null);
-            setActiveTenant(null);
-          }
-          throw apiError;
+        // API error is critical - rollback
+        if (process.env.NODE_ENV === 'development') {
+          console.warn("[TenantProvider] API switchTenant failed:", apiError);
         }
+        
+        // Rollback optimistic update
+        if (previousTenant) {
+          storeTenantId(previousTenant.id);
+          setActiveTenant(previousTenant);
+        } else if (previousTenantId) {
+          storeTenantId(previousTenantId);
+        } else {
+          storeTenantId(null);
+          setActiveTenant(null);
+        }
+        
+        // If Clerk also failed, provide a more helpful error message
+        if (!clerkUpdateSuccess) {
+          throw new Error(
+            `Tenant-Wechsel fehlgeschlagen: Die Organisation existiert möglicherweise nicht in Clerk oder du hast keinen Zugriff. ` +
+            `Bitte kontaktiere den Support, falls das Problem weiterhin besteht.`
+          );
+        }
+        
+        throw apiError;
       }
 
       // Refresh session in background with fresh token (don't show loading)
@@ -332,11 +356,17 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         }
       });
     } catch (err) {
-      console.error("[TenantProvider] Failed to switch tenant:", err);
+      // Only log errors in development to reduce console noise
+      if (process.env.NODE_ENV === 'development') {
+        console.error("[TenantProvider] Failed to switch tenant:", err);
+      }
       
       // Ensure we refresh session to get back to valid state
       fetchSession(true, false).catch(refreshErr => {
-        console.error("[TenantProvider] Failed to refresh session after error:", refreshErr);
+        // Only log in development
+        if (process.env.NODE_ENV === 'development') {
+          console.error("[TenantProvider] Failed to refresh session after error:", refreshErr);
+        }
       });
       
       throw err;
