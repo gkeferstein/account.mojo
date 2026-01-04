@@ -139,10 +139,10 @@ export async function updateProfileCache(
     create: {
       tenantId,
       userId,
-      payload: profile,
+      payload: profile as any,
     },
     update: {
-      payload: profile,
+      payload: profile as any,
     },
   });
 }
@@ -168,12 +168,12 @@ export async function updateBillingCache(
     create: {
       tenantId,
       userId,
-      subscription: data.subscription || null,
-      invoices: data.invoices || null,
+      subscription: (data.subscription || null) as any,
+      invoices: (data.invoices || null) as any,
     },
     update: {
-      ...(data.subscription !== undefined && { subscription: data.subscription }),
-      ...(data.invoices !== undefined && { invoices: data.invoices }),
+      ...(data.subscription !== undefined && { subscription: data.subscription as any }),
+      ...(data.invoices !== undefined && { invoices: data.invoices as any }),
     },
   });
 }
@@ -196,10 +196,10 @@ export async function updateEntitlementCache(
     create: {
       tenantId,
       userId,
-      entitlements,
+      entitlements: entitlements as any,
     },
     update: {
-      entitlements,
+      entitlements: entitlements as any,
     },
   });
 }

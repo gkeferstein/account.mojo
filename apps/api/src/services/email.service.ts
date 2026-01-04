@@ -26,7 +26,7 @@ export interface EmailOptions {
   data: Record<string, any>;
   from?: string;
   replyTo?: string;
-  tags?: string[];
+  tags?: Array<{ name: string; value: string }>;
   metadata?: Record<string, string>;
   // Optional: Check user preferences before sending
   checkPreferences?: {
@@ -240,9 +240,8 @@ export async function sendEmail(options: EmailOptions): Promise<{ success: boole
       subject: options.subject,
       html: content.html,
       text: content.text,
-      reply_to: options.replyTo,
-      tags: options.tags,
-      metadata: options.metadata,
+      replyTo: options.replyTo,
+      tags: options.tags ? options.tags.map(t => typeof t === 'string' ? { name: t, value: t } : t) : undefined,
     });
 
     appLogger.info('Email sent successfully', {
@@ -294,7 +293,7 @@ export async function sendTenantInvitationEmail(options: {
       inviteUrl: options.inviteUrl,
       expiresAt: options.expiresAt.toISOString(),
     },
-    tags: ['tenant-invitation'],
+    tags: [{ name: 'tenant-invitation', value: 'tenant-invitation' }],
   });
 }
 
@@ -331,7 +330,7 @@ export async function sendInvoiceEmail(options: {
       tenantId: options.checkPreferences.tenantId,
       preferenceType: 'emailNotifications', // Invoices are always sent (required for billing)
     } : undefined,
-    tags: ['invoice', 'billing'],
+    tags: [{ name: 'invoice', value: 'invoice' }, { name: 'billing', value: 'billing' }],
   });
 }
 

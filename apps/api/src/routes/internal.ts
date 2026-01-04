@@ -365,8 +365,7 @@ export async function internalRoutes(fastify: FastifyInstance): Promise<void> {
         data: body.data || {},
         from: body.from,
         replyTo: body.replyTo,
-        tags: body.tags,
-        metadata: body.metadata,
+        tags: body.tags ? body.tags.map(t => typeof t === 'string' ? { name: t, value: t } : t) : undefined,
         checkPreferences: body.checkPreferences,
       });
 

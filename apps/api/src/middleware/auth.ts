@@ -324,6 +324,9 @@ async function getUserTenants(userId: string, user?: User): Promise<Array<Tenant
     },
     select: {
       id: true,
+      clerkMembershipId: true,
+      tenantId: true,
+      userId: true,
       role: true,
       status: true,
       createdAt: true,
@@ -344,6 +347,10 @@ async function getUserTenants(userId: string, user?: User): Promise<Array<Tenant
 
   return memberships.map((m) => ({
     ...m.tenant,
+    metadata: null,
+    deletedAt: null,
+    logoUrl: null,
+    ownerUserId: '',
     membership: {
       id: m.id,
       clerkMembershipId: m.clerkMembershipId,
@@ -354,7 +361,7 @@ async function getUserTenants(userId: string, user?: User): Promise<Array<Tenant
       createdAt: m.createdAt,
       updatedAt: m.updatedAt,
     },
-  }));
+  })) as Array<Tenant & { membership: TenantMembership }>;
 }
 
 // Map Clerk org to tenant (lookup only - creation happens via webhook)

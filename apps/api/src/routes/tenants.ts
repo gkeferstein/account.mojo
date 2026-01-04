@@ -330,13 +330,14 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
             inviteUrl: `${env.FRONTEND_URL}/invite?token=${invitation.token}`,
             expiresAt: invitation.expiresAt,
           });
-      } catch (error) {
-        // Log error but don't fail the invitation creation
-        appLogger.error('Failed to send invitation email', {
-          error: error instanceof Error ? error.message : String(error),
-          invitationId: invitation.id,
-          email: input.email,
-        });
+        } catch (error) {
+          // Log error but don't fail the invitation creation
+          appLogger.error('Failed to send invitation email', {
+            error: error instanceof Error ? error.message : String(error),
+            invitationId: invitation.id,
+            email: input.email,
+          });
+        }
       }
 
       return reply.status(201).send({

@@ -105,10 +105,10 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
       create: {
         tenantId: auth.activeTenant.id,
         userId: auth.userId,
-        payload: updatedProfile,
+        payload: updatedProfile as any,
       },
       update: {
-        payload: updatedProfile,
+        payload: updatedProfile as any,
       },
     });
 

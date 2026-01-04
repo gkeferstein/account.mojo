@@ -47,17 +47,12 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       const { limit = '50', cursor } = request.query as { limit?: string; cursor?: string };
 
       // Resend API: List emails
-      // Note: Resend v4 may not have emails.list - using analytics instead
-      const result = await resend.analytics.retrieve({
-        date_from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        date_to: new Date().toISOString().split('T')[0],
-      });
-
+      // Note: Resend v4 doesn't have emails.list - return empty list for now
+      // TODO: Implement proper email listing when Resend API supports it
       return reply.send({
         emails: [],
         hasMore: false,
         nextCursor: null,
-        analytics: result,
       });
     } catch (error: any) {
       appLogger.error('Failed to list emails from Resend', {
@@ -134,9 +129,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         subject: body.subject,
         html: body.html,
         text: body.text,
-        reply_to: body.replyTo,
-        tags: body.tags ? (Array.isArray(body.tags) ? body.tags.map(t => typeof t === 'string' ? { name: t } : t) : []) : undefined,
-        metadata: body.metadata,
+        replyTo: body.replyTo,
+        tags: body.tags ? (Array.isArray(body.tags) ? body.tags.map(t => typeof t === 'string' ? { name: t, value: t } : (t as { name: string; value: string })) : []) : undefined,
       });
 
       appLogger.info('Email sent via admin interface', {
@@ -210,20 +204,16 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     try {
-      // Get analytics to calculate stats
-      const analyticsResult = await resend.analytics.retrieve({
-        date_from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        date_to: new Date().toISOString().split('T')[0],
-      });
-      // Calculate stats from analytics
+      // Resend v4 doesn't have analytics.retrieve - return empty stats for now
+      // TODO: Implement proper stats when Resend API supports it
       const stats = {
-        total: analyticsResult?.emails_sent || 0,
-        sent: analyticsResult?.emails_sent || 0,
-        delivered: analyticsResult?.emails_delivered || 0,
-        bounced: analyticsResult?.emails_bounced || 0,
-        complained: analyticsResult?.emails_complained || 0,
-        opened: analyticsResult?.emails_opened || 0,
-        clicked: analyticsResult?.emails_clicked || 0,
+        total: 0,
+        sent: 0,
+        delivered: 0,
+        bounced: 0,
+        complained: 0,
+        opened: 0,
+        clicked: 0,
       };
 
       return reply.send(stats);

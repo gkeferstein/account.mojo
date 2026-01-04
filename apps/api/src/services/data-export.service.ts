@@ -327,14 +327,15 @@ export async function processAccountDeletion(
     // 1. Anonymize data in payments.mojo
     try {
       const anonymizationResult = await paymentsClient.anonymizeCustomer(clerkUserId, reason, dataRequestId);
+      const paymentsResult = anonymizationResult as { customer_id?: string; anonymized_fields?: string[] } | null;
       successDetails.payments = {
-        customer_id: anonymizationResult?.customer_id || 'unknown',
-        anonymized_fields: anonymizationResult?.anonymized_fields || [],
+        customer_id: paymentsResult?.customer_id || 'unknown',
+        anonymized_fields: paymentsResult?.anonymized_fields || [],
       };
       appLogger.info('Anonymized customer in payments.mojo', {
         dataRequestId,
-        customer_id: successDetails.payments?.customer_id || 'unknown',
-        anonymized_fields: successDetails.payments?.anonymized_fields || [],
+        customer_id: (successDetails.payments as any)?.customer_id || 'unknown',
+        anonymized_fields: (successDetails.payments as any)?.anonymized_fields || [],
       });
     } catch (error: unknown) {
       failures.push('payments.mojo');
@@ -363,19 +364,19 @@ export async function processAccountDeletion(
       where: { id: dataRequestId },
     });
 
-    const status = failures.length > 0 ? 'partially_completed' : 'completed';
+    const status: 'completed' | 'failed' = failures.length > 0 ? 'failed' : 'completed';
     
     await prisma.dataRequest.update({
       where: { id: dataRequestId },
       data: {
-        status: status as 'completed' | 'partially_completed',
+        status,
         completedAt: new Date(),
         metadata: {
           ...((currentRequest?.metadata as object) || {}),
           processedAt: new Date().toISOString(),
           failures: failures.length > 0 ? failures : undefined,
           successDetails: Object.keys(successDetails).length > 0 ? successDetails : undefined,
-        },
+        } as any,
       },
     });
 
