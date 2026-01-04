@@ -100,9 +100,17 @@ jobs:
         run: |
           # Set CI environment to make Next.js lint non-interactive
           export CI=true
-          # Run lint for each workspace
+          # Run lint for API
           echo "Running lint for API..."
-          pnpm -w apps/api run lint
+        continue-on-error: false
+
+      - name: ESLint (API)
+        working-directory: ./apps/api
+        run: pnpm run lint
+
+      - name: ESLint (Web)
+        working-directory: ./apps/web
+        run: |
           echo "⚠️ Skipping Web lint (next lint is deprecated and interactive in CI)"
           echo "⚠️ TypeScript check and build will catch linting errors"
         continue-on-error: false
