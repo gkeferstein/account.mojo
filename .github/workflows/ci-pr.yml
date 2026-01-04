@@ -66,18 +66,20 @@ jobs:
           NPM_TOKEN: ${{ steps.npm-token.outputs.token }}
         run: |
           echo "Installing dependencies with pnpm..."
-          # Clean workspace: references from package.json files
-          echo "🔍 Cleaning workspace: references..."
-          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\*"/"*"/g' {} \;
-          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\^[^"]*"/"*"/g' {} \;
-          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:[^"]*"/"*"/g' {} \;
-          echo "✅ Cleaned workspace: references from package.json files"
-          # Use pnpm install
+          # Clean workspace: references from package.json files AFTER install
+          # First install with workspace references intact
+          echo "Installing with workspace references..."
           if [ -f pnpm-lock.yaml ]; then
             pnpm install --frozen-lockfile
           else
             pnpm install
           fi
+          # Now clean workspace references for compatibility
+          echo "🔍 Cleaning workspace: references..."
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\*"/"*"/g' {} \;
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:\^[^"]*"/"*"/g' {} \;
+          find . -name "package.json" -not -path "./node_modules/*" -exec sed -i 's/"workspace:[^"]*"/"*"/g' {} \;
+          echo "✅ Cleaned workspace: references from package.json files"
           # Verify eslint is installed
           echo "Verifying eslint installation..."
           pnpm list eslint || echo "⚠️ eslint not found in root"
