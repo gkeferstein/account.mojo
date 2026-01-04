@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { motion } from "framer-motion";
+import { useToken } from "@/hooks/useToken";
+import { useApiError } from "@/hooks/useApiError";
 import {
   Users,
   UserPlus,
@@ -10,8 +11,9 @@ import {
   Trash2,
   Shield,
   Clock,
+  Building2,
+  ChevronRight,
 } from "lucide-react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useTenant } from "@/providers/TenantProvider";
 import { accountsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,9 +44,11 @@ interface Invitation {
 }
 
 export default function TeamPage() {
-  const { getToken } = useAuth();
-  const { activeTenant, user } = useTenant();
+  const { getToken } = useToken();
+  const { tenants, activeTenant, user, switchTenant } = useTenant();
   const { toast } = useToast();
+  const { handleError } = useApiError();
+  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,36 +57,44 @@ export default function TeamPage() {
   const [inviteRole, setInviteRole] = useState("member");
   const [isInviting, setIsInviting] = useState(false);
 
+  // Filter out personal tenants - only show organizations
+  const organizations = tenants.filter(t => !t.isPersonal);
+  
+  // Use selected tenant or active tenant (if it's an organization)
+  const currentTenant = selectedTenantId 
+    ? organizations.find(t => t.id === selectedTenantId)
+    : (activeTenant && !activeTenant.isPersonal ? activeTenant : organizations[0] || null);
+
   useEffect(() => {
     async function fetchTeam() {
-      if (!activeTenant) return;
+      if (!currentTenant) {
+        setIsLoading(false);
+        return;
+      }
 
       try {
+        setIsLoading(true);
         const token = await getToken();
-        if (!token) return;
-
-        const data = await accountsApi.getTenant(token, activeTenant.id);
+        const data = await accountsApi.getTenant(token, currentTenant.id);
         setMembers(data.members);
         setInvitations(data.pendingInvitations);
       } catch (error) {
-        console.error("Failed to fetch team:", error);
+        handleError(error, "Team konnte nicht geladen werden.");
       } finally {
         setIsLoading(false);
       }
     }
 
     fetchTeam();
-  }, [getToken, activeTenant]);
+  }, [getToken, currentTenant]);
 
   const handleInvite = async () => {
-    if (!activeTenant || !inviteEmail) return;
+    if (!currentTenant || !inviteEmail) return;
 
     setIsInviting(true);
     try {
       const token = await getToken();
-      if (!token) return;
-
-      await accountsApi.inviteMember(token, activeTenant.id, {
+      await accountsApi.inviteMember(token, currentTenant.id, {
         email: inviteEmail,
         role: inviteRole,
       });
@@ -96,28 +108,21 @@ export default function TeamPage() {
       setShowInviteForm(false);
 
       // Refresh
-      const data = await accountsApi.getTenant(token, activeTenant.id);
+      const data = await accountsApi.getTenant(token, currentTenant.id);
       setInvitations(data.pendingInvitations);
     } catch (error) {
-      console.error("Failed to invite member:", error);
-      toast({
-        variant: "destructive",
-        title: "Fehler",
-        description: "Einladung konnte nicht gesendet werden.",
-      });
+      handleError(error, "Einladung konnte nicht gesendet werden.");
     } finally {
       setIsInviting(false);
     }
   };
 
   const handleRevokeInvitation = async (invitationId: string) => {
-    if (!activeTenant) return;
+    if (!currentTenant) return;
 
     try {
       const token = await getToken();
-      if (!token) return;
-
-      await accountsApi.revokeInvitation(token, activeTenant.id, invitationId);
+      await accountsApi.revokeInvitation(token, currentTenant.id, invitationId);
       setInvitations((prev) => prev.filter((i) => i.id !== invitationId));
 
       toast({
@@ -125,23 +130,16 @@ export default function TeamPage() {
         description: "Die Einladung wurde widerrufen.",
       });
     } catch (error) {
-      console.error("Failed to revoke invitation:", error);
-      toast({
-        variant: "destructive",
-        title: "Fehler",
-        description: "Einladung konnte nicht widerrufen werden.",
-      });
+      handleError(error, "Einladung konnte nicht widerrufen werden.");
     }
   };
 
   const handleRemoveMember = async (memberId: string) => {
-    if (!activeTenant) return;
+    if (!currentTenant) return;
 
     try {
       const token = await getToken();
-      if (!token) return;
-
-      await accountsApi.removeMember(token, activeTenant.id, memberId);
+      await accountsApi.removeMember(token, currentTenant.id, memberId);
       setMembers((prev) => prev.filter((m) => m.id !== memberId));
 
       toast({
@@ -149,55 +147,114 @@ export default function TeamPage() {
         description: "Das Mitglied wurde aus dem Team entfernt.",
       });
     } catch (error) {
-      console.error("Failed to remove member:", error);
-      toast({
-        variant: "destructive",
-        title: "Fehler",
-        description: "Mitglied konnte nicht entfernt werden.",
-      });
+      handleError(error, "Mitglied konnte nicht entfernt werden.");
     }
   };
 
-  if (activeTenant?.isPersonal) {
+  // If user has no organizations, show message
+  if (organizations.length === 0) {
     return (
-      <DashboardLayout>
+      <>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center py-20"
         >
-          <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-          <h2 className="text-2xl font-bold mb-2">Persönliches Konto</h2>
+          <Building2 className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+          <h2 className="text-2xl font-bold mb-2">Keine Organisationen</h2>
           <p className="text-muted-foreground max-w-md mx-auto">
-            Team-Verwaltung ist nur für Organisationen verfügbar.
-            Erstelle eine Organisation, um ein Team zu verwalten.
+            Du bist noch keinem Team beigetreten oder hast keine Organisation erstellt.
+            Organisationen werden über Clerk verwaltet.
           </p>
         </motion.div>
-      </DashboardLayout>
+      </>
     );
   }
 
+  const handleSelectTenant = async (tenantId: string) => {
+    setSelectedTenantId(tenantId);
+    // Optionally switch active tenant
+    try {
+      await switchTenant(tenantId);
+    } catch (error) {
+      // If switching fails, we still show the team for the selected tenant
+      console.error("Failed to switch tenant:", error);
+    }
+  };
+
   return (
-    <DashboardLayout>
+    <>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-8 flex items-center justify-between"
+        className="mb-8"
       >
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Team</h1>
-          <p className="text-muted-foreground">
-            Verwalte die Mitglieder von {activeTenant?.name}.
-          </p>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Teams</h1>
+            <p className="text-muted-foreground">
+              Verwalte die Mitglieder deiner Organisationen.
+            </p>
+          </div>
+          {currentTenant && (
+            <Button onClick={() => setShowInviteForm(!showInviteForm)}>
+              <UserPlus className="w-4 h-4 mr-2" />
+              Mitglied einladen
+            </Button>
+          )}
         </div>
-        <Button onClick={() => setShowInviteForm(!showInviteForm)}>
-          <UserPlus className="w-4 h-4 mr-2" />
-          Mitglied einladen
-        </Button>
+
+        {/* Organization Selector */}
+        {organizations.length > 1 && (
+          <div className="mb-6">
+            <Label className="mb-2 block">Organisation auswählen</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {organizations.map((org) => (
+                <Card
+                  key={org.id}
+                  className={`cursor-pointer transition-all hover:border-primary ${
+                    currentTenant?.id === org.id
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border'
+                  }`}
+                  onClick={() => handleSelectTenant(org.id)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Building2 className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <p className="font-medium">{org.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {getRoleDisplayName(org.role)}
+                          </p>
+                        </div>
+                      </div>
+                      {currentTenant?.id === org.id && (
+                        <ChevronRight className="w-5 h-5 text-primary" />
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
       </motion.div>
 
-      {/* Invite Form */}
-      {showInviteForm && (
+      {!currentTenant ? (
+        <Card className="bg-card/50">
+          <CardContent className="p-8 text-center">
+            <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">
+              Bitte wähle eine Organisation aus, um deren Team zu verwalten.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Invite Form */}
+          {showInviteForm && (
         <motion.div
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: "auto" }}
@@ -352,6 +409,8 @@ export default function TeamPage() {
           </motion.div>
         )}
       </div>
-    </DashboardLayout>
+        </>
+      )}
+    </>
   );
 }

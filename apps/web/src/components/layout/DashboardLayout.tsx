@@ -9,7 +9,7 @@
  * MojoShell and MojoSidebar in sync.
  */
 
-import { ReactNode, useState, useCallback } from 'react';
+import { ReactNode, useState, useCallback, useMemo } from 'react';
 import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
 import { MojoShell, MojoBackground } from '@gkeferstein/design';
 import { Header } from './Header';
@@ -24,7 +24,7 @@ interface DashboardLayoutProps {
 }
 
 // LocalStorage key for sidebar state persistence
-const SIDEBAR_COLLAPSED_KEY = 'mojo-sidebar-collapsed';
+const SIDEBAR_COLLAPSED_KEY = 'accounts-sidebar-collapsed';
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { isLoading } = useTenant();
@@ -48,6 +48,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       return newValue;
     });
   }, []);
+
+  // Memoize Sidebar and Header to prevent remounting during navigation
+  const sidebarElement = useMemo(
+    () => (
+      <Sidebar
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={handleToggleSidebar}
+      />
+    ),
+    [sidebarCollapsed, handleToggleSidebar]
+  );
+
+  const headerElement = useMemo(() => <Header />, []);
 
   return (
     <>
@@ -93,13 +106,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </MojoBackground>
         ) : (
           <MojoShell
-            sidebar={
-              <Sidebar
-                collapsed={sidebarCollapsed}
-                onToggleCollapse={handleToggleSidebar}
-              />
-            }
-            topbar={<Header />}
+            sidebar={sidebarElement}
+            topbar={headerElement}
             showBackground
             noise
             orbs

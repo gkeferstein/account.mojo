@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { motion } from "framer-motion";
+import { useToken } from "@/hooks/useToken";
+import { useApiError } from "@/hooks/useApiError";
 import {
   CreditCard,
   ExternalLink,
@@ -13,7 +14,7 @@ import {
   AlertTriangle,
   Sparkles,
 } from "lucide-react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { accountsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,8 +50,9 @@ interface Entitlement {
 }
 
 export default function MembershipPage() {
-  const { getToken } = useAuth();
+  const { getToken } = useToken();
   const { toast } = useToast();
+  const { handleError } = useApiError();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [entitlements, setEntitlements] = useState<Entitlement[]>([]);
@@ -61,8 +63,6 @@ export default function MembershipPage() {
     async function fetchData() {
       try {
         const token = await getToken();
-        if (!token) return;
-
         const [subRes, invRes, entRes] = await Promise.all([
           accountsApi.getSubscription(token),
           accountsApi.getInvoices(token),
@@ -73,7 +73,7 @@ export default function MembershipPage() {
         setInvoices(invRes.invoices);
         setEntitlements(entRes.entitlements);
       } catch (error) {
-        console.error("Failed to fetch membership data:", error);
+        handleError(error, "Mitgliedschaftsdaten konnten nicht geladen werden.");
       } finally {
         setIsLoading(false);
       }
@@ -86,17 +86,10 @@ export default function MembershipPage() {
     setIsOpeningPortal(true);
     try {
       const token = await getToken();
-      if (!token) return;
-
       const { url } = await accountsApi.createBillingPortalSession(token);
       window.open(url, "_blank");
     } catch (error) {
-      console.error("Failed to open billing portal:", error);
-      toast({
-        variant: "destructive",
-        title: "Fehler",
-        description: "Billing Portal konnte nicht geöffnet werden.",
-      });
+      handleError(error, "Billing Portal konnte nicht geöffnet werden.");
     } finally {
       setIsOpeningPortal(false);
     }
@@ -116,7 +109,7 @@ export default function MembershipPage() {
   };
 
   return (
-    <DashboardLayout>
+    <>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -315,6 +308,6 @@ export default function MembershipPage() {
           </Card>
         </motion.div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }

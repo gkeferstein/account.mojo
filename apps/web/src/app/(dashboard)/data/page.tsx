@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
+import { useState, Suspense } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
+import { useToken } from "@/hooks/useToken";
+import { useApiError } from "@/hooks/useApiError";
 import {
   Database,
   Download,
@@ -13,7 +15,7 @@ import {
   XCircle,
   Loader2,
 } from "lucide-react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { accountsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,114 +31,185 @@ interface DataRequest {
   downloadUrl: string | null;
 }
 
-export default function DataPage() {
-  const { getToken } = useAuth();
+function DataPageContent() {
+  const { getToken } = useToken();
   const { toast } = useToast();
-  const [requests, setRequests] = useState<DataRequest[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isExporting, setIsExporting] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const { handleError } = useApiError();
+  const queryClient = useQueryClient();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteReason, setDeleteReason] = useState("");
 
-  useEffect(() => {
-    async function fetchRequests() {
-      try {
-        const token = await getToken();
-        if (!token) return;
-
-        const data = await accountsApi.getDataRequests(token);
-        setRequests(data.requests);
-      } catch (error) {
-        console.error("Failed to fetch data requests:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchRequests();
-  }, [getToken]);
-
-  const handleExport = async () => {
-    setIsExporting(true);
-    try {
+  // Fetch data requests with React Query
+  const { data, isLoading } = useQuery({
+    queryKey: ['data-requests'],
+    queryFn: async () => {
       const token = await getToken();
-      if (!token) return;
+      return accountsApi.getDataRequests(token);
+    },
+    staleTime: 2 * 60 * 1000, // 2 Minuten
+  });
 
-      const result = await accountsApi.requestDataExport(token);
+  const requests = data?.requests || [];
 
+  // Export mutation
+  const exportMutation = useMutation({
+    mutationFn: async () => {
+      const token = await getToken();
+      return accountsApi.requestDataExport(token);
+    },
+    onSuccess: (result) => {
       toast({
         title: "Export angefordert",
         description: result.message,
       });
+      queryClient.invalidateQueries({ queryKey: ['data-requests'] });
+    },
+    onError: (error) => {
+      handleError(error, "Export konnte nicht angefordert werden.");
+    },
+  });
 
-      // Refresh requests
-      const data = await accountsApi.getDataRequests(token);
-      setRequests(data.requests);
-    } catch (error) {
-      console.error("Failed to request export:", error);
-      toast({
-        variant: "destructive",
-        title: "Fehler",
-        description: "Export konnte nicht angefordert werden.",
-      });
-    } finally {
-      setIsExporting(false);
-    }
+  const isExporting = exportMutation.isPending;
+
+  const handleExport = () => {
+    exportMutation.mutate();
   };
 
-  const handleDelete = async () => {
-    setIsDeleting(true);
-    try {
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (reason: string) => {
       const token = await getToken();
-      if (!token) return;
-
-      const result = await accountsApi.requestDataDeletion(token, deleteReason);
-
+      return accountsApi.requestDataDeletion(token, reason);
+    },
+    onSuccess: (result) => {
       toast({
         title: "Löschung angefordert",
         description: result.message,
       });
-
       setShowDeleteConfirm(false);
       setDeleteReason("");
+      queryClient.invalidateQueries({ queryKey: ['data-requests'] });
+    },
+    onError: (error) => {
+      handleError(error, "Löschung konnte nicht angefordert werden.");
+    },
+  });
 
-      // Refresh requests
-      const data = await accountsApi.getDataRequests(token);
-      setRequests(data.requests);
-    } catch (error) {
-      console.error("Failed to request deletion:", error);
-      toast({
-        variant: "destructive",
-        title: "Fehler",
-        description: "Löschung konnte nicht angefordert werden.",
-      });
-    } finally {
-      setIsDeleting(false);
-    }
+  const isDeleting = deleteMutation.isPending;
+
+  const handleDelete = () => {
+    deleteMutation.mutate(deleteReason);
   };
 
-  const handleCancelRequest = async (requestId: string) => {
-    try {
+  // Cancel mutation
+  const cancelMutation = useMutation({
+    mutationFn: async (requestId: string) => {
       const token = await getToken();
-      if (!token) return;
+      return accountsApi.cancelDataRequest(token, requestId);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Anfrage abgebrochen",
+        description: "Die Anfrage wurde abgebrochen.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['data-requests'] });
+    },
+    onError: (error) => {
+      handleError(error, "Anfrage konnte nicht abgebrochen werden.");
+    },
+  });
 
-      await accountsApi.cancelDataRequest(token, requestId);
+  const handleCancelRequest = (requestId: string) => {
+    cancelMutation.mutate(requestId);
+  };
+  const { getToken } = useToken();
+  const { toast } = useToast();
+  const { handleError } = useApiError();
+  const queryClient = useQueryClient();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
 
+  // Fetch data requests with React Query
+  const { data, isLoading } = useQuery({
+    queryKey: ['data-requests'],
+    queryFn: async () => {
+      const token = await getToken();
+      return accountsApi.getDataRequests(token);
+    },
+    staleTime: 2 * 60 * 1000, // 2 Minuten
+  });
+
+  const requests = data?.requests || [];
+
+  // Export mutation
+  const exportMutation = useMutation({
+    mutationFn: async () => {
+      const token = await getToken();
+      return accountsApi.requestDataExport(token);
+    },
+    onSuccess: (result) => {
+      toast({
+        title: "Export angefordert",
+        description: result.message,
+      });
+      queryClient.invalidateQueries({ queryKey: ['data-requests'] });
+    },
+    onError: (error) => {
+      handleError(error, "Export konnte nicht angefordert werden.");
+    },
+  });
+
+  const isExporting = exportMutation.isPending;
+
+  const handleExport = () => {
+    exportMutation.mutate();
+  };
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      const token = await getToken();
+      return accountsApi.requestDataDeletion(token, reason);
+    },
+    onSuccess: (result) => {
+      toast({
+        title: "Löschung angefordert",
+        description: result.message,
+      });
+      setShowDeleteConfirm(false);
+      setDeleteReason("");
+      queryClient.invalidateQueries({ queryKey: ['data-requests'] });
+    },
+    onError: (error) => {
+      handleError(error, "Löschung konnte nicht angefordert werden.");
+    },
+  });
+
+  const handleDelete = () => {
+    deleteMutation.mutate(deleteReason);
+  };
+
+  // Cancel mutation
+  const cancelMutation = useMutation({
+    mutationFn: async (requestId: string) => {
+      const token = await getToken();
+      return accountsApi.cancelDataRequest(token, requestId);
+    },
+    onSuccess: () => {
       toast({
         title: "Anfrage abgebrochen",
         description: "Die Anfrage wurde abgebrochen.",
       });
 
-      setRequests((prev) => prev.filter((r) => r.id !== requestId));
-    } catch (error) {
-      console.error("Failed to cancel request:", error);
-      toast({
-        variant: "destructive",
-        title: "Fehler",
-        description: "Anfrage konnte nicht abgebrochen werden.",
-      });
-    }
+      queryClient.invalidateQueries({ queryKey: ['data-requests'] });
+    },
+    onError: (error) => {
+      handleError(error, "Anfrage konnte nicht abgebrochen werden.");
+    },
+  });
+
+  const handleCancelRequest = (requestId: string) => {
+    cancelMutation.mutate(requestId);
   };
 
   const getStatusIcon = (status: string) => {
@@ -153,7 +226,7 @@ export default function DataPage() {
   };
 
   return (
-    <DashboardLayout>
+    <>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -360,6 +433,24 @@ export default function DataPage() {
           </Card>
         </motion.div>
       </div>
-    </DashboardLayout>
+    </>
+  );
+}
+
+// Loading skeleton component
+function DataPageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="h-8 w-48 bg-muted animate-pulse rounded" />
+      <div className="h-64 bg-muted animate-pulse rounded-lg" />
+    </div>
+  );
+}
+
+export default function DataPage() {
+  return (
+    <Suspense fallback={<DataPageSkeleton />}>
+      <DataPageContent />
+    </Suspense>
   );
 }

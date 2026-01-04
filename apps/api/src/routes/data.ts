@@ -3,23 +3,25 @@ import prisma from '../lib/prisma.js';
 import { logAuditEvent, AuditActions } from '../services/audit.js';
 import { createDataRequestSchema } from '@accounts/shared';
 import { processDataExport, processAccountDeletion } from '../services/data-export.service.js';
+import { requireActiveTenant } from '../middleware/active-tenant.js';
 
 export async function dataRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /data/requests - List data requests
-  fastify.get('/data/requests', async (request, reply) => {
+  fastify.get('/data/requests', { preHandler: [requireActiveTenant()] }, async (request, reply) => {
     const { auth } = request;
-
-    if (!auth.activeTenant) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No active tenant',
-      });
-    }
 
     const requests = await prisma.dataRequest.findMany({
       where: {
         tenantId: auth.activeTenant.id,
         userId: auth.userId,
+      },
+      select: {
+        id: true,
+        type: true,
+        status: true,
+        createdAt: true,
+        completedAt: true,
+        downloadUrl: true,
       },
       orderBy: { createdAt: 'desc' },
       take: 20,
@@ -38,15 +40,8 @@ export async function dataRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   // POST /data/export-request - Request data export
-  fastify.post('/data/export-request', async (request, reply) => {
+  fastify.post('/data/export-request', { preHandler: [requireActiveTenant()] }, async (request, reply) => {
     const { auth } = request;
-
-    if (!auth.activeTenant) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No active tenant',
-      });
-    }
 
     // Check for existing pending request
     const existingRequest = await prisma.dataRequest.findFirst({
@@ -104,17 +99,10 @@ export async function dataRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   // POST /data/delete-request - Request account deletion
-  fastify.post('/data/delete-request', async (request, reply) => {
+  fastify.post('/data/delete-request', { preHandler: [requireActiveTenant()] }, async (request, reply) => {
     const { auth } = request;
     const body = request.body as Record<string, unknown>;
     const input = createDataRequestSchema.parse({ ...body, type: 'delete' });
-
-    if (!auth.activeTenant) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No active tenant',
-      });
-    }
 
     // Check for existing pending request
     const existingRequest = await prisma.dataRequest.findFirst({
@@ -176,16 +164,12 @@ export async function dataRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   // DELETE /data/requests/:requestId - Cancel data request
-  fastify.delete<{ Params: { requestId: string } }>('/data/requests/:requestId', async (request, reply) => {
-    const { auth } = request;
-    const { requestId } = request.params;
-
-    if (!auth.activeTenant) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No active tenant',
-      });
-    }
+  fastify.delete<{ Params: { requestId: string } }>(
+    '/data/requests/:requestId',
+    { preHandler: [requireActiveTenant()] },
+    async (request, reply) => {
+      const { auth } = request;
+      const { requestId } = request.params;
 
     const dataRequest = await prisma.dataRequest.findFirst({
       where: {
@@ -214,8 +198,9 @@ export async function dataRoutes(fastify: FastifyInstance): Promise<void> {
       data: { status: 'failed', metadata: { ...dataRequest.metadata as object, cancelledAt: new Date().toISOString() } },
     });
 
-    return reply.send({ success: true, message: 'Request cancelled' });
-  });
+      return reply.send({ success: true, message: 'Request cancelled' });
+    }
+  );
 }
 
 export default dataRoutes;

@@ -1,19 +1,44 @@
 import { config } from 'dotenv';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-// Load environment variables
-config();
+// Load environment variables from project root and apps/api
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+// Load from project root first
+// From apps/api/src/lib/env.ts: ../../../../.env goes to project root
+const rootEnvPath = resolve(__dirname, '../../../../.env');
+const apiEnvPath = resolve(__dirname, '../../.env');
+const rootResult = config({ path: rootEnvPath });
+const apiResult = config({ path: apiEnvPath });
+// Merge parsed results into process.env if not already set
+if (rootResult.parsed) {
+  Object.assign(process.env, rootResult.parsed);
+}
+if (apiResult.parsed) {
+  Object.assign(process.env, apiResult.parsed);
+}
+// Debug: Log if env files were found (only in development)
+if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
+  console.error('[env.ts] Root .env loaded:', rootResult.parsed ? 'YES' : 'NO');
+  console.error('[env.ts] API .env loaded:', apiResult.parsed ? 'YES' : 'NO');
+  console.error('[env.ts] CLERK_SECRET_KEY in process.env:', !!process.env.CLERK_SECRET_KEY);
+  console.error('[env.ts] CLERK_SECRET_KEY in rootResult.parsed:', !!rootResult.parsed?.CLERK_SECRET_KEY);
+  console.error('[env.ts] rootResult.parsed keys:', rootResult.parsed ? Object.keys(rootResult.parsed).join(', ') : 'none');
+}
 
 export const env = {
   // Server
   NODE_ENV: process.env.NODE_ENV || 'development',
-  PORT: parseInt(process.env.PORT || '3001', 10),
+  PORT: parseInt(process.env.PORT || '3005', 10),
   HOST: process.env.HOST || '0.0.0.0',
   
   // Database
-  DATABASE_URL: process.env.DATABASE_URL || 'postgresql://accounts:accounts@localhost:5432/accounts_db',
+  DATABASE_URL: process.env.DATABASE_URL || 'postgresql://accounts:accounts_secret@localhost:5436/accounts_db',
   
   // Clerk
-  CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY || '',
+  // Use parsed result directly if process.env doesn't have it
+  CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY || rootResult.parsed?.CLERK_SECRET_KEY || apiResult.parsed?.CLERK_SECRET_KEY || '',
   CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY || '',
   CLERK_WEBHOOK_SECRET: process.env.CLERK_WEBHOOK_SECRET || '',
   
@@ -35,7 +60,7 @@ export const env = {
   MOCK_EXTERNAL_SERVICES: process.env.MOCK_EXTERNAL_SERVICES === 'true',
   
   // Frontend URL (for CORS)
-  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
+  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3004',
   
   // Email (for invitations)
   EMAIL_FROM: process.env.EMAIL_FROM || 'noreply@mojo-institut.de',

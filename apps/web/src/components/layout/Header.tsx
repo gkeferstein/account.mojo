@@ -4,115 +4,27 @@
  * Header Component
  * Verwendet die einheitliche MojoTopbar-Komponente aus @gkeferstein/design
  * 
- * Uses Clerk Organizations for tenant management
+ * Tenant Switcher wird nur angezeigt, wenn der User mehrere Tenants hat (mindestens Personal + 1 Org)
+ * App Switcher wurde entfernt
  */
 
 import { MojoTopbar, MojoTopbarSkeleton } from '@gkeferstein/design';
-import { useClerk, useOrganizationList, useOrganization, useUser } from '@clerk/nextjs';
+import { useClerk, useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
-import type { Tenant, MojoUser } from '@gkeferstein/design';
+import type { MojoUser, Tenant } from '@gkeferstein/design';
 import { useMemo, useCallback } from 'react';
+import { useTenant } from '@/providers/TenantProvider';
 
 export function Header() {
   const { user: clerkUser, isLoaded: userLoaded } = useUser();
   const { signOut } = useClerk();
-  const { organization: activeOrg } = useOrganization();
-  const { userMemberships, isLoaded: membershipsLoaded, setActive } = useOrganizationList({
-    userMemberships: {
-      infinite: true,
-    },
-  });
   const router = useRouter();
+  const { tenants, activeTenant, switchTenant } = useTenant();
 
   const handleLogout = useCallback(async () => {
     await signOut();
     router.push('/');
   }, [signOut, router]);
-
-  // Build current tenant from active Clerk organization
-  const currentTenant: Tenant | null = useMemo(() => {
-    if (!clerkUser) return null;
-    
-    // If user has an active Clerk organization, use that
-    if (activeOrg) {
-      // Check user's role in the organization
-      const membership = userMemberships?.data?.find(
-        m => m.organization.id === activeOrg.id
-      );
-      const role = membership?.role === 'org:admin' ? 'Admin' : 'Mitglied';
-      
-      return {
-        id: activeOrg.id,
-        name: activeOrg.name,
-        slug: activeOrg.slug || activeOrg.id,
-        type: 'organization',
-        role,
-        imageUrl: activeOrg.imageUrl,
-      };
-    }
-    
-    // No active org - show personal account
-    return {
-      id: clerkUser.id,
-      name: 'Persönlicher Bereich',
-      slug: 'personal',
-      type: 'personal',
-      role: 'Besitzer',
-    };
-  }, [clerkUser, activeOrg, userMemberships?.data]);
-
-  // Build tenant list from Clerk organizations
-  const tenants: Tenant[] = useMemo(() => {
-    const tenantList: Tenant[] = [];
-    
-    // Always add personal space option
-    if (clerkUser) {
-      tenantList.push({
-        id: clerkUser.id,
-        name: 'Persönlicher Bereich',
-        slug: 'personal',
-        type: 'personal',
-        role: 'Besitzer',
-      });
-    }
-    
-    // Add Clerk organizations the user is a member of
-    if (membershipsLoaded && userMemberships?.data) {
-      for (const membership of userMemberships.data) {
-        const org = membership.organization;
-        if (org) {
-          tenantList.push({
-            id: org.id,
-            name: org.name,
-            slug: org.slug || org.id,
-            type: 'organization',
-            role: membership.role === 'org:admin' ? 'Admin' : 'Mitglied',
-            imageUrl: org.imageUrl,
-          });
-        }
-      }
-    }
-    
-    return tenantList;
-  }, [clerkUser, membershipsLoaded, userMemberships?.data]);
-
-  // Handle tenant switching
-  const handleTenantChange = useCallback(async (tenant: Tenant) => {
-    console.log('Switching to tenant:', tenant.id, tenant.name);
-    
-    // If switching to personal space
-    if (tenant.type === 'personal') {
-      if (setActive) {
-        await setActive({ organization: null });
-      }
-      return;
-    }
-    
-    // If switching to a Clerk organization
-    if (setActive && tenant.type === 'organization') {
-      await setActive({ organization: tenant.id });
-    }
-  }, [setActive]);
 
   // Map Clerk user to MojoUser format
   const mojoUser: MojoUser | null = useMemo(() => {
@@ -125,20 +37,53 @@ export function Header() {
     };
   }, [clerkUser]);
 
-  // Show loading state
-  const isLoading = !userLoaded || !membershipsLoaded;
+  // Map tenants to MojoTopbar format
+  const mojoTenants: Tenant[] = useMemo(() => {
+    return tenants.map((t) => ({
+      id: t.id,
+      name: t.name,
+      slug: t.slug,
+      type: t.isPersonal ? 'personal' : 'organization',
+      role: t.role,
+    }));
+  }, [tenants]);
 
-  // accounts.mojo shows all available apps (no entitlements filtering)
-  const entitlements: string[] = [];
+  // Current tenant for MojoTopbar
+  const currentTenant: Tenant | null = useMemo(() => {
+    if (!activeTenant) return null;
+    return {
+      id: activeTenant.id,
+      name: activeTenant.name,
+      slug: activeTenant.slug,
+      type: activeTenant.isPersonal ? 'personal' : 'organization',
+      role: activeTenant.role,
+    };
+  }, [activeTenant]);
+
+  // Handle tenant switching
+  const handleTenantChange = useCallback(async (tenant: Tenant) => {
+    await switchTenant(tenant.id);
+  }, [switchTenant]);
+
+  // Show tenant switcher only if user has multiple tenants (at least Personal + 1 Org)
+  const hasMultipleTenants = tenants.length > 1;
+  const showTenantSwitcher = hasMultipleTenants;
+
+  // Show loading state
+  const isLoading = !userLoaded;
+
+  // IMPORTANT: Always pass the current tenant to MojoTopbar, even if there's only one
+  // This ensures MojoTopbar uses our data instead of fetching from Clerk directly
+  // If we don't pass tenant, MojoTopbar might use useOrganization() internally
+  const tenantToPass = activeTenant ? currentTenant : undefined;
 
   return (
     <MojoTopbar
-      currentApp="account"
       user={mojoUser}
-      tenant={currentTenant}
-      tenants={tenants}
-      entitlements={entitlements}
-      onTenantChange={handleTenantChange}
+      tenant={tenantToPass}
+      tenants={showTenantSwitcher ? mojoTenants : []}
+      onTenantChange={showTenantSwitcher ? handleTenantChange : undefined}
+      entitlements={[]}
       onLogout={handleLogout}
       isLoading={isLoading}
     />

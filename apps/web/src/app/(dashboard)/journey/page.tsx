@@ -6,7 +6,7 @@
  * Like martial arts belts - from "hanging in the ropes" to vital entrepreneur
  */
 
-import { DashboardLayout } from '@/components/layout/DashboardLayout';
+
 import { motion } from 'framer-motion';
 import { 
   Check, 
@@ -496,9 +496,9 @@ function JourneyContent() {
 
 export default function JourneyPage() {
   return (
-    <DashboardLayout>
+    <>
       <JourneyContent />
-    </DashboardLayout>
+    </>
   );
 }
 

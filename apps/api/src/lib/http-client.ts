@@ -90,8 +90,9 @@ export class BaseHttpClient {
   protected config: Required<Pick<HttpClientConfig, 'baseUrl' | 'apiKey' | 'timeout' | 'maxRetries'>> & {
     retryDelay: number;
   };
+  protected mockMode: boolean;
 
-  constructor(config: HttpClientConfig) {
+  constructor(config: HttpClientConfig, mockMode: boolean = false) {
     this.config = {
       baseUrl: config.baseUrl,
       apiKey: config.apiKey,
@@ -99,6 +100,33 @@ export class BaseHttpClient {
       maxRetries: config.maxRetries ?? 3,
       retryDelay: config.retryDelay ?? 1000, // 1 second initial delay
     };
+    this.mockMode = mockMode;
+  }
+
+  /**
+   * Execute a method with mock mode support
+   * If mock mode is enabled, returns mockData after a delay
+   * Otherwise executes realFetch and handles errors with onError
+   */
+  protected async withMock<T>(
+    mockData: T,
+    realFetch: () => Promise<T>,
+    onError?: (error: unknown) => T
+  ): Promise<T> {
+    if (this.mockMode) {
+      // Simulate network delay in mock mode
+      await delay(100);
+      return mockData;
+    }
+
+    try {
+      return await realFetch();
+    } catch (error) {
+      if (onError) {
+        return onError(error);
+      }
+      throw error;
+    }
   }
 
   /**

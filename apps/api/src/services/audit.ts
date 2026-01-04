@@ -1,5 +1,6 @@
 import { FastifyRequest } from 'fastify';
 import prisma from '../lib/prisma.js';
+import { appLogger } from '../lib/logger.js';
 
 export interface AuditLogParams {
   action: string;
@@ -15,7 +16,10 @@ export async function logAuditEvent(
   const { auth } = request;
 
   if (!auth?.userId || !auth?.activeTenant) {
-    console.warn('Cannot log audit event: missing auth context');
+    appLogger.warn('Cannot log audit event: missing auth context', {
+      hasUserId: !!auth?.userId,
+      hasActiveTenant: !!auth?.activeTenant,
+    });
     return;
   }
 
@@ -33,7 +37,13 @@ export async function logAuditEvent(
       },
     });
   } catch (error) {
-    console.error('Failed to log audit event:', error);
+    appLogger.error('Failed to log audit event', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      action: params.action,
+      resourceType: params.resourceType,
+      resourceId: params.resourceId,
+    });
     // Don't throw - audit logging should not break the request
   }
 }

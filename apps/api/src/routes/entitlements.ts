@@ -2,19 +2,13 @@ import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma.js';
 import paymentsClient from '../clients/payments.js';
 import type { Entitlement, AppEntitlementsResponse } from '@accounts/shared';
-import { isCacheStale, updateEntitlementCache, CACHE_TTL } from '../services/cache.service.js';
+import { isCacheStale, updateEntitlementCache, CACHE_TTL, withSingleFlight } from '../services/cache.service.js';
+import { requireActiveTenant } from '../middleware/active-tenant.js';
 
 export async function entitlementsRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /entitlements - Get user entitlements
-  fastify.get('/entitlements', async (request, reply) => {
+  fastify.get('/entitlements', { preHandler: [requireActiveTenant()] }, async (request, reply) => {
     const { auth } = request;
-
-    if (!auth.activeTenant) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No active tenant',
-      });
-    }
 
     // Try cache first
     let entitlementCache = await prisma.entitlementCache.findUnique({
@@ -27,16 +21,21 @@ export async function entitlementsRoutes(fastify: FastifyInstance): Promise<void
     });
 
     // Refresh if cache is stale (older than 5 minutes)
+    // Use Single-Flight Pattern to prevent concurrent refresh requests
     if (!entitlementCache || isCacheStale(entitlementCache, CACHE_TTL.ENTITLEMENTS)) {
-      // Fetch from payments.mojo with fallback to stale cache
+      const cacheKey = `entitlements:${auth.activeTenant.id}:${auth.userId}`;
+      
       try {
-        const entitlements = await paymentsClient.getEntitlements(auth.userId, auth.activeTenant.id);
+        // Single-Flight: Only one request will fetch, others wait
+        entitlementCache = await withSingleFlight(cacheKey, async () => {
+          const entitlements = await paymentsClient.getEntitlements(auth.userId, auth.activeTenant.id);
 
-        entitlementCache = await updateEntitlementCache(
-          auth.activeTenant.id,
-          auth.userId,
-          entitlements
-        );
+          return await updateEntitlementCache(
+            auth.activeTenant.id,
+            auth.userId,
+            entitlements
+          );
+        });
       } catch (error) {
         // Fallback: Use stale cache if available
         request.log.warn({
@@ -80,15 +79,8 @@ export async function entitlementsRoutes(fastify: FastifyInstance): Promise<void
 
   // GET /entitlements/apps - Get app access entitlements for navigation
   // Returns the entitlement strings needed by MojoGlobalHeader
-  fastify.get('/entitlements/apps', async (request, reply) => {
+  fastify.get('/entitlements/apps', { preHandler: [requireActiveTenant()] }, async (request, reply) => {
     const { auth } = request;
-
-    if (!auth.activeTenant) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No active tenant',
-      });
-    }
 
     // Fetch app entitlements from payments.mojo
     const appEntitlements = await paymentsClient.getAppEntitlements(
@@ -100,16 +92,12 @@ export async function entitlementsRoutes(fastify: FastifyInstance): Promise<void
   });
 
   // GET /entitlements/:resourceId - Check specific entitlement
-  fastify.get<{ Params: { resourceId: string } }>('/entitlements/:resourceId', async (request, reply) => {
-    const { auth } = request;
-    const { resourceId } = request.params;
-
-    if (!auth.activeTenant) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No active tenant',
-      });
-    }
+  fastify.get<{ Params: { resourceId: string } }>(
+    '/entitlements/:resourceId',
+    { preHandler: [requireActiveTenant()] },
+    async (request, reply) => {
+      const { auth } = request;
+      const { resourceId } = request.params;
 
     // Get entitlements from cache or refresh
     let entitlementCache = await prisma.entitlementCache.findUnique({

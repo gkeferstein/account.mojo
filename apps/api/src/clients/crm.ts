@@ -71,21 +71,21 @@ interface CreateCustomerResponse {
 
 export class CrmClient extends BaseHttpClient {
   private tenantSlug: string;
-  private mockMode: boolean;
 
   constructor() {
+    const mockMode = env.MOCK_EXTERNAL_SERVICES || !env.CRM_API_KEY;
+    
     super({
       baseUrl: env.CRM_API_URL,
       apiKey: env.CRM_API_KEY,
       timeout: 10000, // 10 seconds
       maxRetries: 3,
       retryDelay: 1000, // 1 second initial delay
-    });
+    }, mockMode);
     
     this.tenantSlug = env.CRM_TENANT_SLUG || 'mojo';
-    this.mockMode = env.MOCK_EXTERNAL_SERVICES || !env.CRM_API_KEY;
     
-    if (this.mockMode) {
+    if (mockMode) {
       appLogger.info('CrmClient running in mock mode');
     }
   }
@@ -110,28 +110,25 @@ export class CrmClient extends BaseHttpClient {
    * Wird aufgerufen bei Clerk user.created Webhook
    */
   async createCustomer(data: CreateCustomerRequest): Promise<CreateCustomerResponse | null> {
-    if (this.mockMode) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return {
+    return this.withMock(
+      {
         message: 'Mock: Customer erstellt.',
         accountId: 'mock-account-id',
         partyId: 'mock-party-id',
         created: true,
-      };
-    }
-
-    try {
-      return await this.fetch<CreateCustomerResponse>('/internal/customers', {
+      },
+      () => this.fetch<CreateCustomerResponse>('/internal/customers', {
         method: 'POST',
         body: JSON.stringify(data),
-      });
-    } catch (error) {
-      appLogger.error('Failed to create customer in CRM', {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      return null;
-    }
+      }),
+      (error) => {
+        appLogger.error('Failed to create customer in CRM', {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+        return null;
+      }
+    );
   }
 
   /**
@@ -145,32 +142,30 @@ export class CrmClient extends BaseHttpClient {
     firstName: string;
     lastName: string;
   } | null> {
-    if (this.mockMode) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return {
+    return this.withMock(
+      {
         accountId: 'mock-account-id',
         clerkUserId: clerkUserId || null,
         isLead: !clerkUserId,
         email: email || 'mock@example.com',
         firstName: 'Max',
         lastName: 'Mustermann',
-      };
-    }
-
-    try {
-      const params = new URLSearchParams();
-      if (clerkUserId) params.set('clerkUserId', clerkUserId);
-      if (email) params.set('email', email);
-      
-      return await this.fetch(`/internal/customers/lookup?${params.toString()}`);
-    } catch (error) {
-      appLogger.error('Failed to lookup customer', {
-        error: error instanceof Error ? error.message : String(error),
-        clerkUserId,
-        email,
-      });
-      return null;
-    }
+      },
+      () => {
+        const params = new URLSearchParams();
+        if (clerkUserId) params.set('clerkUserId', clerkUserId);
+        if (email) params.set('email', email);
+        return this.fetch(`/internal/customers/lookup?${params.toString()}`);
+      },
+      (error) => {
+        appLogger.error('Failed to lookup customer', {
+          error: error instanceof Error ? error.message : String(error),
+          clerkUserId,
+          email,
+        });
+        return null;
+      }
+    );
   }
 
   /**
@@ -178,20 +173,17 @@ export class CrmClient extends BaseHttpClient {
    * @param clerkUserId - Die Clerk User ID
    */
   async getProfile(clerkUserId: string): Promise<Profile | null> {
-    if (this.mockMode) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return mockProfile;
-    }
-
-    try {
-      return await this.fetch<Profile>(`/me/profile?clerkUserId=${clerkUserId}`);
-    } catch (error) {
-      appLogger.error('Failed to fetch profile', {
-        error: error instanceof Error ? error.message : String(error),
-        clerkUserId,
-      });
-      return null;
-    }
+    return this.withMock(
+      mockProfile,
+      () => this.fetch<Profile>(`/me/profile?clerkUserId=${clerkUserId}`),
+      (error) => {
+        appLogger.error('Failed to fetch profile', {
+          error: error instanceof Error ? error.message : String(error),
+          clerkUserId,
+        });
+        return null;
+      }
+    );
   }
 
   /**
@@ -200,23 +192,20 @@ export class CrmClient extends BaseHttpClient {
    * @param data - Die zu aktualisierenden Felder
    */
   async updateProfile(clerkUserId: string, data: Partial<Profile>): Promise<Profile | null> {
-    if (this.mockMode) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return { ...mockProfile, ...data };
-    }
-
-    try {
-      return await this.fetch<Profile>(`/me/profile?clerkUserId=${clerkUserId}`, {
+    return this.withMock(
+      { ...mockProfile, ...data },
+      () => this.fetch<Profile>(`/me/profile?clerkUserId=${clerkUserId}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
-      });
-    } catch (error) {
-      appLogger.error('Failed to update profile', {
-        error: error instanceof Error ? error.message : String(error),
-        clerkUserId,
-      });
-      return null;
-    }
+      }),
+      (error) => {
+        appLogger.error('Failed to update profile', {
+          error: error instanceof Error ? error.message : String(error),
+          clerkUserId,
+        });
+        return null;
+      }
+    );
   }
 
   /**
@@ -224,20 +213,17 @@ export class CrmClient extends BaseHttpClient {
    * @param clerkUserId - Die Clerk User ID
    */
   async getConsents(clerkUserId: string): Promise<Consent[]> {
-    if (this.mockMode) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return mockConsents;
-    }
-
-    try {
-      return await this.fetch<Consent[]>(`/me/consents?clerkUserId=${clerkUserId}`);
-    } catch (error) {
-      appLogger.error('Failed to fetch consents', {
-        error: error instanceof Error ? error.message : String(error),
-        clerkUserId,
-      });
-      return [];
-    }
+    return this.withMock(
+      mockConsents,
+      () => this.fetch<Consent[]>(`/me/consents?clerkUserId=${clerkUserId}`),
+      (error) => {
+        appLogger.error('Failed to fetch consents', {
+          error: error instanceof Error ? error.message : String(error),
+          clerkUserId,
+        });
+        return [];
+      }
+    );
   }
 
   /**
@@ -246,9 +232,8 @@ export class CrmClient extends BaseHttpClient {
    * @param consents - Die zu aktualisierenden Consents
    */
   async updateConsents(clerkUserId: string, consents: Array<{ type: string; granted: boolean }>): Promise<Consent[]> {
-    if (this.mockMode) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return mockConsents.map((c) => {
+    return this.withMock(
+      mockConsents.map((c) => {
         const update = consents.find((u) => u.type === c.type);
         if (update) {
           return {
@@ -259,21 +244,19 @@ export class CrmClient extends BaseHttpClient {
           };
         }
         return c;
-      });
-    }
-
-    try {
-      return await this.fetch<Consent[]>(`/me/consents?clerkUserId=${clerkUserId}`, {
+      }),
+      () => this.fetch<Consent[]>(`/me/consents?clerkUserId=${clerkUserId}`, {
         method: 'PATCH',
         body: JSON.stringify({ consents }),
-      });
-    } catch (error) {
-      appLogger.error('Failed to update consents', {
-        error: error instanceof Error ? error.message : String(error),
-        clerkUserId,
-      });
-      return [];
-    }
+      }),
+      (error) => {
+        appLogger.error('Failed to update consents', {
+          error: error instanceof Error ? error.message : String(error),
+          clerkUserId,
+        });
+        return [];
+      }
+    );
   }
 }
 

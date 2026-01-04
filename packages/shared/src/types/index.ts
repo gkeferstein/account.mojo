@@ -193,6 +193,7 @@ export interface SessionTenant {
   slug: string;
   role: TenantRole;
   isPersonal: boolean;
+  clerkOrgId: string | null;
 }
 
 export interface Session {

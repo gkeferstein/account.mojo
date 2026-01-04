@@ -1,47 +1,39 @@
-# Dependencies
-node_modules/
-.pnpm-store/
 
 # Build outputs
-dist/
-build/
-.next/
-out/
-
+# CI trigger
+# Dependencies
 # Environment
-.env
-.env.local
-.env.*.local
-*.local
-
+# Final CI check
 # IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-.cursor-server/
-
 # Logs
-logs/
+# Misc
+# OS
+# Test
+*.local
 *.log
+*.swo
+*.swp
+*.tsbuildinfo
+.DS_Store
+.cursor-server/
+.env
+.env.*.local
+.env.bak
+.env.local
+.idea/
+.next/
+.npmrc
+.nyc_output/
+.pnpm-store/
+.vscode/
+Thumbs.db
+apps/web/.npmrc
+build/
+coverage/
+dist/
+logs/
+node_modules/
 npm-debug.log*
+out/
 yarn-debug.log*
 yarn-error.log*
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Test
-coverage/
-.nyc_output/
-
-# Misc
-*.tsbuildinfo
-
-
-
-
-# CI trigger
-# Final CI check
-apps/web/.npmrc

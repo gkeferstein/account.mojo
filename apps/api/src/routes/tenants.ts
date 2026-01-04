@@ -1,8 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma.js';
+import { Prisma } from '@prisma/client';
 import { requireRole, requireTenantAccess, requireMemberManagement, canChangeRole, canRemoveMember } from '../middleware/rbac.js';
 import { logAuditEvent, AuditActions } from '../services/audit.js';
-import { generateSlug, generateInviteToken, createTenantSchema, updateTenantSchema, inviteMemberSchema, updateMemberRoleSchema } from '@accounts/shared';
+import { generateSlug, generateInviteToken, createTenantSchema, updateTenantSchema, inviteMemberSchema, updateMemberRoleSchema, paginationSchema } from '@accounts/shared';
 import { TenantRole } from '@prisma/client';
 
 export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
@@ -31,78 +32,124 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
 
     const slug = input.slug || generateSlug(input.name);
 
-    // Check if slug is taken
-    const existing = await prisma.tenant.findUnique({ where: { slug } });
-    if (existing) {
-      return reply.status(409).send({
-        error: 'Conflict',
-        message: 'A tenant with this slug already exists',
-      });
-    }
-
     // Create tenant, membership, and preferences in a transaction for consistency
-    const tenant = await prisma.$transaction(async (tx) => {
-      const newTenant = await tx.tenant.create({
-        data: {
-          name: input.name,
-          slug,
-          isPersonal: false,
-        },
+    // Rely on database unique constraint to prevent race conditions
+    try {
+      const tenant = await prisma.$transaction(async (tx) => {
+        const newTenant = await tx.tenant.create({
+          data: {
+            name: input.name,
+            slug,
+            isPersonal: false,
+          },
+        });
+
+        // Create owner membership for creator
+        await tx.tenantMembership.create({
+          data: {
+            tenantId: newTenant.id,
+            userId: auth.userId,
+            role: 'owner',
+            status: 'active',
+          },
+        });
+
+        // Create default preferences
+        await tx.preferences.create({
+          data: {
+            tenantId: newTenant.id,
+            userId: auth.userId,
+          },
+        });
+
+        return newTenant;
       });
 
-      // Create owner membership for creator
-      await tx.tenantMembership.create({
-        data: {
-          tenantId: newTenant.id,
-          userId: auth.userId,
-          role: 'owner',
-          status: 'active',
-        },
+      await logAuditEvent(request, {
+        action: AuditActions.TENANT_CREATE,
+        resourceType: 'tenant',
+        resourceId: tenant.id,
+        metadata: { name: tenant.name, slug: tenant.slug },
       });
 
-      // Create default preferences
-      await tx.preferences.create({
-        data: {
-          tenantId: newTenant.id,
-          userId: auth.userId,
-        },
+      return reply.status(201).send({
+        id: tenant.id,
+        name: tenant.name,
+        slug: tenant.slug,
+        isPersonal: tenant.isPersonal,
+        role: 'owner',
       });
-
-      return newTenant;
-    });
-
-    await logAuditEvent(request, {
-      action: AuditActions.TENANT_CREATE,
-      resourceType: 'tenant',
-      resourceId: tenant.id,
-      metadata: { name: tenant.name, slug: tenant.slug },
-    });
-
-    return reply.status(201).send({
-      id: tenant.id,
-      name: tenant.name,
-      slug: tenant.slug,
-      isPersonal: tenant.isPersonal,
-      role: 'owner',
-    });
+    } catch (error) {
+      // Handle unique constraint violation (race condition)
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        // Check if it's the slug field that caused the conflict
+        if (error.meta && typeof error.meta === 'object' && 'target' in error.meta) {
+          const target = error.meta.target as string[];
+          if (target.includes('slug')) {
+            return reply.status(409).send({
+              error: 'Conflict',
+              message: 'A tenant with this slug already exists',
+            });
+          }
+        }
+        // Generic conflict error
+        return reply.status(409).send({
+          error: 'Conflict',
+          message: 'A tenant with this value already exists',
+        });
+      }
+      // Re-throw other errors to be handled by error handler
+      throw error;
+    }
   });
 
   // GET /tenants/:tenantId - Get tenant details
-  fastify.get<{ Params: { tenantId: string } }>(
+  fastify.get<{ Params: { tenantId: string }; Querystring: { page?: string; pageSize?: string } }>(
     '/tenants/:tenantId',
     { preHandler: [requireTenantAccess()] },
     async (request, reply) => {
       const { tenantId } = request.params;
+      const { page, pageSize } = paginationSchema.parse(request.query);
 
       const tenant = await prisma.tenant.findUnique({
         where: { id: tenantId },
-        include: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          logoUrl: true,
+          isPersonal: true,
+          createdAt: true,
           memberships: {
             where: { status: 'active' },
-            include: { user: true },
+            select: {
+              id: true,
+              userId: true,
+              role: true,
+              createdAt: true,
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  firstName: true,
+                  lastName: true,
+                  avatarUrl: true,
+                },
+              },
+            },
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+            orderBy: { createdAt: 'desc' },
           },
           invitations: {
             where: { status: 'pending' },
+            select: {
+              id: true,
+              email: true,
+              role: true,
+              expiresAt: true,
+              createdAt: true,
+            },
           },
           _count: {
             select: { memberships: { where: { status: 'active' } } },
@@ -114,6 +161,9 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(404).send({ error: 'Not Found', message: 'Tenant not found' });
       }
 
+      const totalMembers = tenant._count.memberships;
+      const totalPages = Math.ceil(totalMembers / pageSize);
+
       return reply.send({
         id: tenant.id,
         name: tenant.name,
@@ -121,7 +171,7 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
         logoUrl: tenant.logoUrl,
         isPersonal: tenant.isPersonal,
         createdAt: tenant.createdAt,
-        memberCount: tenant._count.memberships,
+        memberCount: totalMembers,
         members: tenant.memberships.map((m) => ({
           id: m.id,
           userId: m.userId,
@@ -139,6 +189,14 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
           expiresAt: i.expiresAt,
           createdAt: i.createdAt,
         })),
+        pagination: {
+          page,
+          pageSize,
+          total: totalMembers,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
       });
     }
   );
@@ -151,38 +209,50 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
       const { tenantId } = request.params;
       const input = updateTenantSchema.parse(request.body);
 
-      // Check slug uniqueness if changing
-      if (input.slug) {
-        const existing = await prisma.tenant.findFirst({
-          where: { slug: input.slug, id: { not: tenantId } },
+      // Update tenant - rely on database unique constraint to prevent race conditions
+      try {
+        const tenant = await prisma.tenant.update({
+          where: { id: tenantId },
+          data: input,
         });
-        if (existing) {
+
+        await logAuditEvent(request, {
+          action: AuditActions.TENANT_UPDATE,
+          resourceType: 'tenant',
+          resourceId: tenant.id,
+          metadata: { changes: input },
+        });
+
+        return reply.send({
+          id: tenant.id,
+          name: tenant.name,
+          slug: tenant.slug,
+          logoUrl: tenant.logoUrl,
+          isPersonal: tenant.isPersonal,
+        });
+      } catch (error) {
+        // Handle unique constraint violation (race condition)
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          // Check if it's the slug field that caused the conflict
+          if (error.meta && typeof error.meta === 'object' && 'target' in error.meta) {
+            const target = error.meta.target as string[];
+            if (target.includes('slug')) {
+              return reply.status(409).send({
+                error: 'Conflict',
+                message: 'A tenant with this slug already exists',
+              });
+            }
+          }
+          // Generic conflict error
           return reply.status(409).send({
             error: 'Conflict',
-            message: 'A tenant with this slug already exists',
+            message: 'A tenant with this value already exists',
           });
         }
+        // Re-throw other errors to be handled by error handler
+        throw error;
       }
 
-      const tenant = await prisma.tenant.update({
-        where: { id: tenantId },
-        data: input,
-      });
-
-      await logAuditEvent(request, {
-        action: AuditActions.TENANT_UPDATE,
-        resourceType: 'tenant',
-        resourceId: tenant.id,
-        metadata: { changes: input },
-      });
-
-      return reply.send({
-        id: tenant.id,
-        name: tenant.name,
-        slug: tenant.slug,
-        logoUrl: tenant.logoUrl,
-        isPersonal: tenant.isPersonal,
-      });
     }
   );
 

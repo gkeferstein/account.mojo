@@ -5,7 +5,7 @@
  * Configure notification preferences across different channels
  */
 
-import { DashboardLayout } from '@/components/layout/DashboardLayout';
+
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -387,9 +387,9 @@ function NotificationsContent() {
 
 export default function NotificationsPage() {
   return (
-    <DashboardLayout>
+    <>
       <NotificationsContent />
-    </DashboardLayout>
+    </>
   );
 }
 

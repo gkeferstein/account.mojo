@@ -74,20 +74,18 @@ const mockAppEntitlements: AppEntitlementsResponse = {
 };
 
 export class PaymentsClient extends BaseHttpClient {
-  private mockMode: boolean;
-
   constructor() {
+    const mockMode = env.MOCK_EXTERNAL_SERVICES || !env.PAYMENTS_API_KEY;
+    
     super({
       baseUrl: env.PAYMENTS_API_URL,
       apiKey: env.PAYMENTS_API_KEY,
       timeout: 10000, // 10 seconds
       maxRetries: 3,
       retryDelay: 1000, // 1 second initial delay
-    });
+    }, mockMode);
     
-    this.mockMode = env.MOCK_EXTERNAL_SERVICES || !env.PAYMENTS_API_KEY;
-    
-    if (this.mockMode) {
+    if (mockMode) {
       appLogger.info('PaymentsClient running in mock mode');
     }
   }
@@ -107,61 +105,67 @@ export class PaymentsClient extends BaseHttpClient {
   }
 
   async getSubscription(userId: string, tenantId: string): Promise<Subscription | null> {
-    if (this.mockMode) {
-      // Simulate some delay
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return mockSubscription;
-    }
-
-    try {
-      // Note: payments.mojo returns the subscription directly, not wrapped in {success, data}
-      return await this.fetch<Subscription>(`/me/subscription?userId=${userId}&tenantId=${tenantId}`);
-    } catch (error) {
-      appLogger.error('Failed to fetch subscription', {
-        error: error instanceof Error ? error.message : String(error),
-        userId,
-        tenantId,
-      });
-      return null;
-    }
+    return this.withMock(
+      mockSubscription,
+      () => this.fetch<Subscription>(`/me/subscription?userId=${userId}&tenantId=${tenantId}`),
+      (error) => {
+        appLogger.error('Failed to fetch subscription', {
+          error: error instanceof Error ? error.message : String(error),
+          userId,
+          tenantId,
+        });
+        return null;
+      }
+    );
   }
 
   async getInvoices(userId: string, tenantId: string): Promise<Invoice[]> {
-    if (this.mockMode) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return mockInvoices;
-    }
+    return this.withMock(
+      mockInvoices,
+      () => this.fetch<Invoice[]>(`/me/invoices?userId=${userId}&tenantId=${tenantId}`),
+      (error) => {
+        appLogger.error('Failed to fetch invoices', {
+          error: error instanceof Error ? error.message : String(error),
+          userId,
+          tenantId,
+        });
+        return [];
+      }
+    );
+  }
 
-    try {
-      // Note: payments.mojo returns the array directly, not wrapped in {success, data}
-      return await this.fetch<Invoice[]>(`/me/invoices?userId=${userId}&tenantId=${tenantId}`);
-    } catch (error) {
-      appLogger.error('Failed to fetch invoices', {
-        error: error instanceof Error ? error.message : String(error),
-        userId,
-        tenantId,
-      });
-      return [];
-    }
+  /**
+   * Get statements (revenue statements) from payments.mojo
+   * Similar to /statements endpoint in payments.mojo
+   */
+  async getStatements(userId: string, tenantId: string): Promise<any[]> {
+    return this.withMock(
+      [],
+      () => this.fetch<any[]>(`/me/statements?userId=${userId}&tenantId=${tenantId}`),
+      (error) => {
+        appLogger.error('Failed to fetch statements', {
+          error: error instanceof Error ? error.message : String(error),
+          userId,
+          tenantId,
+        });
+        return [];
+      }
+    );
   }
 
   async getEntitlements(userId: string, tenantId: string): Promise<Entitlement[]> {
-    if (this.mockMode) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return mockEntitlements;
-    }
-
-    try {
-      // Note: payments.mojo returns the array directly, not wrapped in {success, data}
-      return await this.fetch<Entitlement[]>(`/me/entitlements?userId=${userId}&tenantId=${tenantId}`);
-    } catch (error) {
-      appLogger.error('Failed to fetch entitlements', {
-        error: error instanceof Error ? error.message : String(error),
-        userId,
-        tenantId,
-      });
-      return [];
-    }
+    return this.withMock(
+      mockEntitlements,
+      () => this.fetch<Entitlement[]>(`/me/entitlements?userId=${userId}&tenantId=${tenantId}`),
+      (error) => {
+        appLogger.error('Failed to fetch entitlements', {
+          error: error instanceof Error ? error.message : String(error),
+          userId,
+          tenantId,
+        });
+        return [];
+      }
+    );
   }
 
   /**
@@ -169,37 +173,31 @@ export class PaymentsClient extends BaseHttpClient {
    * Returns which MOJO platform apps the user has access to
    */
   async getAppEntitlements(userId: string, tenantId: string): Promise<AppEntitlementsResponse> {
-    if (this.mockMode) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return mockAppEntitlements;
-    }
-
-    try {
-      return await this.fetch<AppEntitlementsResponse>(`/me/app-entitlements?userId=${userId}&tenantId=${tenantId}`);
-    } catch (error) {
-      appLogger.error('Failed to fetch app entitlements', {
-        error: error instanceof Error ? error.message : String(error),
-        userId,
-        tenantId,
-      });
-      return { entitlements: [], isPlatformAdmin: false };
-    }
+    return this.withMock(
+      mockAppEntitlements,
+      () => this.fetch<AppEntitlementsResponse>(`/me/app-entitlements?userId=${userId}&tenantId=${tenantId}`),
+      (error) => {
+        appLogger.error('Failed to fetch app entitlements', {
+          error: error instanceof Error ? error.message : String(error),
+          userId,
+          tenantId,
+        });
+        return { entitlements: [], isPlatformAdmin: false };
+      }
+    );
   }
 
   async createBillingPortalSession(userId: string, tenantId: string, returnUrl: string): Promise<BillingPortalResponse> {
-    if (this.mockMode) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return {
+    return this.withMock(
+      {
         url: `https://billing.stripe.com/mock-session?return_url=${encodeURIComponent(returnUrl)}`,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      };
-    }
-
-    // Note: payments.mojo returns {url, expiresAt} directly
-    return await this.fetch<BillingPortalResponse>('/me/billing-portal-session', {
-      method: 'POST',
-      body: JSON.stringify({ userId, tenantId, returnUrl }),
-    });
+      },
+      () => this.fetch<BillingPortalResponse>('/me/billing-portal-session', {
+        method: 'POST',
+        body: JSON.stringify({ userId, tenantId, returnUrl }),
+      })
+    );
   }
 
   /**
@@ -207,26 +205,23 @@ export class PaymentsClient extends BaseHttpClient {
    * Used for DSGVO "Right to Access" (Art. 15)
    */
   async getGdprExport(clerkUserId: string): Promise<any> {
-    if (this.mockMode) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return {
+    return this.withMock(
+      {
         customer: { id: 'mock-customer', email: 'mock@example.com' },
         orders: [],
         payments: [],
         invoices: [],
         exported_at: new Date().toISOString(),
-      };
-    }
-
-    try {
-      return await this.fetch<any>(`/internal/gdpr/export-by-clerk/${clerkUserId}`);
-    } catch (error) {
-      appLogger.error('Failed to fetch GDPR export from payments.mojo', {
-        error: error instanceof Error ? error.message : String(error),
-        clerkUserId,
-      });
-      throw error;
-    }
+      },
+      () => this.fetch<any>(`/internal/gdpr/export-by-clerk/${clerkUserId}`),
+      (error) => {
+        appLogger.error('Failed to fetch GDPR export from payments.mojo', {
+          error: error instanceof Error ? error.message : String(error),
+          clerkUserId,
+        });
+        throw error; // Critical operation, throw error
+      }
+    );
   }
 
   /**
@@ -234,9 +229,8 @@ export class PaymentsClient extends BaseHttpClient {
    * Used for DSGVO "Right to be Forgotten" (Art. 17)
    */
   async anonymizeCustomer(clerkUserId: string, reason: string, requestId?: string): Promise<any> {
-    if (this.mockMode) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return {
+    return this.withMock(
+      {
         success: true,
         customer_id: 'mock-customer',
         anonymized_at: new Date().toISOString(),
@@ -247,22 +241,20 @@ export class PaymentsClient extends BaseHttpClient {
           invoices_count: 0,
           reason: 'GoBD Aufbewahrungspflicht (10 Jahre)',
         },
-      };
-    }
-
-    try {
-      return await this.fetch<any>(`/internal/gdpr/anonymize-by-clerk/${clerkUserId}`, {
+      },
+      () => this.fetch<any>(`/internal/gdpr/anonymize-by-clerk/${clerkUserId}`, {
         method: 'POST',
         body: JSON.stringify({ reason, request_id: requestId }),
-      });
-    } catch (error) {
-      appLogger.error('Failed to anonymize customer in payments.mojo', {
-        error: error instanceof Error ? error.message : String(error),
-        clerkUserId,
-        reason,
-      });
-      throw error;
-    }
+      }),
+      (error) => {
+        appLogger.error('Failed to anonymize customer in payments.mojo', {
+          error: error instanceof Error ? error.message : String(error),
+          clerkUserId,
+          reason,
+        });
+        throw error; // Critical operation, throw error
+      }
+    );
   }
 
   /**
@@ -270,68 +262,53 @@ export class PaymentsClient extends BaseHttpClient {
    * Used for DSGVO "Right to Data Portability" (Art. 20)
    */
   async getDataPortability(clerkUserId: string, format: 'json' | 'csv' | 'xml' = 'json'): Promise<string> {
-    if (this.mockMode) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return JSON.stringify({
+    return this.withMock(
+      JSON.stringify({
         customer: { id: 'mock-customer', email: 'mock@example.com' },
         orders: [],
         payments: [],
         invoices: [],
         exported_at: new Date().toISOString(),
-      });
-    }
-
-    // Use fetchWithRetry but return text instead of JSON
-    try {
-      // Override the fetch to return text
-      const url = `/internal/gdpr/data-portability-by-clerk/${clerkUserId}?format=${format}`;
-      const response = await this.fetchWithRetry<Response>(
-        url,
-        {
-          method: 'GET',
-        },
-        {
-          maxRetries: 3,
+      }),
+      async () => {
+        // Use fetchWithRetry but return text instead of JSON
+        // Fallback: direct fetch with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        try {
+          const response = await fetch(`${this['config'].baseUrl}/internal/gdpr/data-portability-by-clerk/${clerkUserId}?format=${format}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${this['config'].apiKey}`,
+              [TENANT_HEADERS.SERVICE_NAME]: 'accounts.mojo',
+            },
+            signal: controller.signal,
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({ message: 'Unknown error' })) as { message?: string };
+            throw new Error(error.message || `HTTP ${response.status}`);
+          }
+          
+          return await response.text();
+        } catch (fetchError) {
+          clearTimeout(timeoutId);
+          throw fetchError;
         }
-      ) as unknown as Response;
-      
-      // Note: fetchWithRetry returns JSON by default, but we need text
-      // For now, use a direct fetch with timeout/retry wrapper
-      return await (response as any).text();
-    } catch (error) {
-      // Fallback: direct fetch with timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
-      try {
-        const response = await fetch(`${this['config'].baseUrl}/internal/gdpr/data-portability-by-clerk/${clerkUserId}?format=${format}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this['config'].apiKey}`,
-            [TENANT_HEADERS.SERVICE_NAME]: 'accounts.mojo',
-          },
-          signal: controller.signal,
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-          const error = await response.json().catch(() => ({ message: 'Unknown error' })) as { message?: string };
-          throw new Error(error.message || `HTTP ${response.status}`);
-        }
-        
-        return await response.text();
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
+      },
+      (error) => {
         appLogger.error('Failed to fetch data portability export from payments.mojo', {
-          error: fetchError instanceof Error ? fetchError.message : String(fetchError),
+          error: error instanceof Error ? error.message : String(error),
           clerkUserId,
           format,
         });
-        throw fetchError;
+        throw error; // Critical operation, throw error
       }
-    }
+    );
   }
 }
 

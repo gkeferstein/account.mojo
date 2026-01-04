@@ -3,11 +3,11 @@
 import { motion } from "framer-motion";
 import { UserProfile } from "@clerk/nextjs";
 import { Shield } from "lucide-react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 
 export default function SecurityPage() {
   return (
-    <DashboardLayout>
+    <>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -45,6 +45,6 @@ export default function SecurityPage() {
           routing="hash"
         />
       </motion.div>
-    </DashboardLayout>
+    </>
   );
 }

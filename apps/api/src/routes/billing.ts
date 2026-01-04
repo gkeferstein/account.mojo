@@ -3,7 +3,8 @@ import prisma from '../lib/prisma.js';
 import paymentsClient from '../clients/payments.js';
 import { logAuditEvent, AuditActions } from '../services/audit.js';
 import env from '../lib/env.js';
-import { isCacheStale, updateBillingCache, CACHE_TTL } from '../services/cache.service.js';
+import { isCacheStale, updateBillingCache, CACHE_TTL, withSingleFlight } from '../services/cache.service.js';
+import { requireActiveTenant } from '../middleware/active-tenant.js';
 
 // Validate returnUrl to prevent open redirect vulnerability
 function validateReturnUrl(url: string | undefined): string {
@@ -36,15 +37,8 @@ function validateReturnUrl(url: string | undefined): string {
 
 export async function billingRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /billing/subscription - Get current subscription
-  fastify.get('/billing/subscription', async (request, reply) => {
+  fastify.get('/billing/subscription', { preHandler: [requireActiveTenant()] }, async (request, reply) => {
     const { auth } = request;
-
-    if (!auth.activeTenant) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No active tenant',
-      });
-    }
 
     // Try cache first
     let billingCache = await prisma.billingCache.findUnique({
@@ -57,13 +51,18 @@ export async function billingRoutes(fastify: FastifyInstance): Promise<void> {
     });
 
     // Refresh if cache is stale (older than 1 minute)
+    // Use Single-Flight Pattern to prevent concurrent refresh requests
     if (!billingCache || isCacheStale(billingCache, CACHE_TTL.BILLING)) {
-      // Fetch from payments.mojo with fallback to stale cache
+      const cacheKey = `billing:subscription:${auth.activeTenant.id}:${auth.userId}`;
+      
       try {
-        const subscription = await paymentsClient.getSubscription(auth.userId, auth.activeTenant.id);
+        // Single-Flight: Only one request will fetch, others wait
+        billingCache = await withSingleFlight(cacheKey, async () => {
+          const subscription = await paymentsClient.getSubscription(auth.userId, auth.activeTenant.id);
 
-        billingCache = await updateBillingCache(auth.activeTenant.id, auth.userId, {
-          subscription: subscription || null,
+          return await updateBillingCache(auth.activeTenant.id, auth.userId, {
+            subscription: subscription || null,
+          });
         });
       } catch (error) {
         // Fallback: Use stale cache if available
@@ -98,15 +97,8 @@ export async function billingRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   // GET /billing/invoices - Get invoices
-  fastify.get('/billing/invoices', async (request, reply) => {
+  fastify.get('/billing/invoices', { preHandler: [requireActiveTenant()] }, async (request, reply) => {
     const { auth } = request;
-
-    if (!auth.activeTenant) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No active tenant',
-      });
-    }
 
     // Try cache first
     let billingCache = await prisma.billingCache.findUnique({
@@ -119,13 +111,18 @@ export async function billingRoutes(fastify: FastifyInstance): Promise<void> {
     });
 
     // Refresh if cache is stale
+    // Use Single-Flight Pattern to prevent concurrent refresh requests
     if (!billingCache?.invoices || isCacheStale(billingCache, CACHE_TTL.BILLING)) {
-      // Fetch from payments.mojo with fallback to stale cache
+      const cacheKey = `billing:invoices:${auth.activeTenant.id}:${auth.userId}`;
+      
       try {
-        const invoices = await paymentsClient.getInvoices(auth.userId, auth.activeTenant.id);
+        // Single-Flight: Only one request will fetch, others wait
+        billingCache = await withSingleFlight(cacheKey, async () => {
+          const invoices = await paymentsClient.getInvoices(auth.userId, auth.activeTenant.id);
 
-        billingCache = await updateBillingCache(auth.activeTenant.id, auth.userId, {
-          invoices,
+          return await updateBillingCache(auth.activeTenant.id, auth.userId, {
+            invoices,
+          });
         });
       } catch (error) {
         // Fallback: Use stale cache if available
@@ -154,17 +151,30 @@ export async function billingRoutes(fastify: FastifyInstance): Promise<void> {
     });
   });
 
-  // POST /billing/portal - Create billing portal session
-  fastify.post('/billing/portal', async (request, reply) => {
+  // GET /billing/statements - Get revenue statements
+  fastify.get('/billing/statements', { preHandler: [requireActiveTenant()] }, async (request, reply) => {
     const { auth } = request;
-    const { returnUrl } = request.body as { returnUrl?: string };
 
-    if (!auth.activeTenant) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No active tenant',
+    try {
+      const statements = await paymentsClient.getStatements(auth.userId, auth.activeTenant.id);
+      return reply.send({ statements });
+    } catch (error) {
+      request.log.error({
+        err: error,
+        message: 'Failed to fetch statements from payments.mojo',
+        userId: auth.userId,
+      });
+      return reply.status(500).send({
+        error: 'Server Error',
+        message: 'Failed to fetch statements',
       });
     }
+  });
+
+  // POST /billing/portal - Create billing portal session
+  fastify.post('/billing/portal', { preHandler: [requireActiveTenant()] }, async (request, reply) => {
+    const { auth } = request;
+    const { returnUrl } = request.body as { returnUrl?: string };
 
     // Validate returnUrl to prevent open redirect vulnerability
     const finalReturnUrl = validateReturnUrl(returnUrl);

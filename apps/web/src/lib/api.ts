@@ -1,10 +1,32 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-interface ApiError {
+export interface ApiError {
   error: string;
   message: string;
   code?: string;
   details?: Record<string, unknown>;
+  statusCode?: number;
+}
+
+export class ApiError extends Error {
+  error: string;
+  code?: string;
+  details?: Record<string, unknown>;
+  statusCode: number;
+
+  constructor(message: string, statusCode: number, error?: string, code?: string, details?: Record<string, unknown>) {
+    super(message);
+    this.name = 'ApiError';
+    this.error = error || 'Error';
+    this.statusCode = statusCode;
+    this.code = code;
+    this.details = details;
+    
+    // Maintains proper stack trace for where error was thrown (only available on V8)
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, ApiError);
+    }
+  }
 }
 
 class ApiClient {
@@ -34,18 +56,26 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      const error: ApiError = await response.json().catch(() => ({
+      const errorData: ApiError = await response.json().catch(() => ({
         error: "Unknown Error",
         message: `HTTP ${response.status}`,
       }));
-      throw new Error(error.message || "An error occurred");
+      
+      // Throw detailed ApiError with all information
+      throw new ApiError(
+        errorData.message || "An error occurred",
+        response.status,
+        errorData.error || "Error",
+        errorData.code,
+        errorData.details
+      );
     }
 
     return response.json();
   }
 
-  async get<T>(endpoint: string, token?: string | null): Promise<T> {
-    return this.request<T>(endpoint, { method: "GET" }, token);
+  async get<T>(endpoint: string, token?: string | null, extraHeaders?: Record<string, string>): Promise<T> {
+    return this.request<T>(endpoint, { method: "GET", headers: extraHeaders }, token);
   }
 
   async post<T>(endpoint: string, data?: unknown, token?: string | null): Promise<T> {
@@ -80,7 +110,7 @@ export const api = new ApiClient();
 // Type-safe API methods
 export const accountsApi = {
   // Session
-  getMe: (token: string) => api.get<{
+  getMe: (token: string, activeTenantId?: string | null) => api.get<{
     user: {
       id: string;
       clerkUserId: string;
@@ -95,6 +125,7 @@ export const accountsApi = {
       slug: string;
       role: string;
       isPersonal: boolean;
+      clerkOrgId: string | null;
     }>;
     activeTenantId: string | null;
     activeTenant: {
@@ -103,8 +134,9 @@ export const accountsApi = {
       slug: string;
       role: string;
       isPersonal: boolean;
+      clerkOrgId: string | null;
     } | null;
-  }>("/api/v1/me", token),
+  }>("/api/v1/me", token, activeTenantId ? { 'X-Active-Tenant-Id': activeTenantId } : undefined),
 
   switchTenant: (token: string, tenantId: string) =>
     api.post<{ success: boolean; activeTenant: unknown }>("/api/v1/tenants/switch", { tenantId }, token),
@@ -242,6 +274,19 @@ export const accountsApi = {
 
   createBillingPortalSession: (token: string, returnUrl?: string) =>
     api.post<{ url: string; expiresAt: string }>("/api/v1/billing/portal", { returnUrl }, token),
+
+  getStatements: (token: string) =>
+    api.get<{
+      statements: Array<{
+        id: string;
+        period: string;
+        totalRevenue: number;
+        currency: string;
+        transactions: number;
+        createdAt: string;
+        pdfUrl: string | null;
+      }>;
+    }>("/api/v1/billing/statements", token),
 
   // Entitlements
   getEntitlements: (token: string) =>

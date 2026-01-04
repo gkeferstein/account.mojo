@@ -162,15 +162,132 @@ async function ensurePersonalTenant(user: User): Promise<void> {
   });
 }
 
+// Sync all user organizations from Clerk to our database
+// This ensures all organizations the user is a member of are available as tenants
+async function syncUserOrganizationsFromClerk(user: User): Promise<void> {
+  if (!clerkClient) {
+    return; // Skip if Clerk client not available
+  }
+
+  try {
+    // Fetch all organization memberships from Clerk
+    const membershipList = await clerkClient.users.getOrganizationMembershipList({
+      userId: user.clerkUserId,
+    });
+
+    // Sync each organization
+    for (const clerkMembership of membershipList.data) {
+      const clerkOrgId = clerkMembership.organization.id;
+      
+      // Check if tenant already exists
+      let tenant = await prisma.tenant.findUnique({
+        where: { clerkOrgId },
+      });
+
+      // Create tenant if it doesn't exist
+      if (!tenant) {
+        try {
+          const org = await clerkClient.organizations.getOrganization({ organizationId: clerkOrgId });
+          
+          tenant = await prisma.tenant.create({
+            data: {
+              clerkOrgId,
+              name: org.name,
+              slug: org.slug || `org-${clerkOrgId.replace('org_', '')}`,
+              logoUrl: org.imageUrl,
+              isPersonal: false,
+            },
+          });
+          
+          appLogger.info('Tenant synced from Clerk', {
+            tenantId: tenant.id,
+            clerkOrgId,
+            name: tenant.name,
+            userId: user.id,
+          });
+        } catch (error) {
+          appLogger.error('Failed to sync tenant from Clerk', {
+            error: error instanceof Error ? error.message : String(error),
+            clerkOrgId,
+            userId: user.id,
+          });
+          continue; // Skip this organization and continue with others
+        }
+      }
+
+      // Ensure membership exists
+      if (tenant) {
+        // Map Clerk role to our TenantRole
+        let role: TenantRole = 'member';
+        if (clerkMembership.role === 'org:admin' || clerkMembership.role === 'org:owner') {
+          role = 'admin';
+        } else if (clerkMembership.role === 'org:member') {
+          role = 'member';
+        } else if (clerkMembership.role === 'org:billing_admin') {
+          role = 'billing_admin';
+        }
+
+        await prisma.tenantMembership.upsert({
+          where: {
+            tenantId_userId: {
+              tenantId: tenant.id,
+              userId: user.id,
+            },
+          },
+          create: {
+            clerkMembershipId: clerkMembership.id,
+            tenantId: tenant.id,
+            userId: user.id,
+            role,
+            status: 'active',
+          },
+          update: {
+            clerkMembershipId: clerkMembership.id,
+            role,
+            status: 'active',
+          },
+        });
+      }
+    }
+  } catch (error) {
+    appLogger.error('Failed to sync user organizations from Clerk', {
+      error: error instanceof Error ? error.message : String(error),
+      userId: user.id,
+      clerkUserId: user.clerkUserId,
+    });
+    // Don't throw - continue even if sync fails
+  }
+}
+
 // Get user's tenants with memberships
-async function getUserTenants(userId: string): Promise<Array<Tenant & { membership: TenantMembership }>> {
+async function getUserTenants(userId: string, user?: User): Promise<Array<Tenant & { membership: TenantMembership }>> {
+  // If user is provided, sync organizations from Clerk first
+  if (user) {
+    await syncUserOrganizationsFromClerk(user);
+  }
+
   const memberships = await prisma.tenantMembership.findMany({
     where: {
       userId,
       status: 'active',
     },
-    include: {
-      tenant: true,
+    select: {
+      id: true,
+      role: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+      tenant: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          clerkOrgId: true,
+          isPersonal: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
     },
   });
 
@@ -191,14 +308,101 @@ async function getUserTenants(userId: string): Promise<Array<Tenant & { membersh
 
 // Map Clerk org to tenant (lookup only - creation happens via webhook)
 // NOTE: Tenant and membership creation is now handled via Clerk webhooks (clerk-webhooks.ts)
-async function mapClerkOrgToTenant(clerkOrgId: string, _user: User): Promise<Tenant | null> {
+// If tenant doesn't exist, try to fetch from Clerk and create it (fallback for missing webhooks)
+async function mapClerkOrgToTenant(clerkOrgId: string, user: User): Promise<Tenant | null> {
   if (!clerkOrgId) return null;
 
-  const tenant = await prisma.tenant.findUnique({
+  let tenant = await prisma.tenant.findUnique({
     where: { clerkOrgId },
   });
 
-  if (!tenant) {
+  if (!tenant && clerkClient) {
+    // Fallback: Fetch org from Clerk and create tenant if webhook missed it
+    try {
+      appLogger.info('Tenant not found for clerkOrgId, fetching from Clerk as fallback', {
+        clerkOrgId,
+        userId: user.id,
+      });
+      
+      const org = await clerkClient.organizations.getOrganization({ organizationId: clerkOrgId });
+      
+      tenant = await prisma.tenant.create({
+        data: {
+          clerkOrgId,
+          name: org.name,
+          slug: org.slug || `org-${clerkOrgId.replace('org_', '')}`,
+          logoUrl: org.imageUrl,
+          isPersonal: false,
+        },
+      });
+      
+      // Also create membership for the user if they're a member
+      try {
+        const membershipList = await clerkClient.users.getOrganizationMembershipList({
+          userId: user.clerkUserId,
+        });
+        
+        const membership = membershipList.data.find(m => m.organization.id === clerkOrgId);
+        if (membership) {
+          // Map Clerk role to our TenantRole
+          let role: TenantRole = 'member';
+          if (membership.role === 'org:admin' || membership.role === 'org:owner') {
+            role = 'admin';
+          } else if (membership.role === 'org:member') {
+            role = 'member';
+          } else if (membership.role === 'org:billing_admin') {
+            role = 'billing_admin';
+          }
+          
+          await prisma.tenantMembership.upsert({
+            where: {
+              tenantId_userId: {
+                tenantId: tenant.id,
+                userId: user.id,
+              },
+            },
+            create: {
+              clerkMembershipId: membership.id,
+              tenantId: tenant.id,
+              userId: user.id,
+              role,
+              status: 'active',
+            },
+            update: {
+              clerkMembershipId: membership.id,
+              role,
+              status: 'active',
+            },
+          });
+          
+          appLogger.info('Membership created from Clerk as fallback', {
+            tenantId: tenant.id,
+            userId: user.id,
+            role,
+          });
+        }
+      } catch (membershipError) {
+        appLogger.warn('Failed to create membership from Clerk as fallback', {
+          error: membershipError instanceof Error ? membershipError.message : String(membershipError),
+          clerkOrgId,
+          userId: user.id,
+        });
+        // Continue even if membership creation fails
+      }
+      
+      appLogger.info('Tenant created from Clerk as fallback', {
+        tenantId: tenant.id,
+        clerkOrgId,
+        name: tenant.name,
+      });
+    } catch (error) {
+      appLogger.error('Failed to fetch org from Clerk as fallback', {
+        error: error instanceof Error ? error.message : String(error),
+        clerkOrgId,
+      });
+      return null;
+    }
+  } else if (!tenant) {
     // Tenant should be created via webhook - log warning if not found
     appLogger.warn('Tenant not found for clerkOrgId (should be created via webhook)', {
       clerkOrgId,
@@ -274,13 +478,15 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
     // Get or create user
     const user = await getOrCreateUser(clerkUserId, email, firstName, lastName, avatarUrl);
 
-    // Get user's tenants
-    const tenants = await getUserTenants(user.id);
+    // Get user's tenants (this will also sync organizations from Clerk)
+    const tenants = await getUserTenants(user.id, user);
 
     // Map Clerk org to tenant if present
     let activeTenant: Tenant | null = null;
     let activeMembership: TenantMembership | null = null;
+    let tenantSource: 'jwt_org_id' | 'header' | 'default' = 'default';
 
+    // Priority 1: Use org_id from JWT if present
     if (clerkOrgId) {
       activeTenant = await mapClerkOrgToTenant(clerkOrgId, user);
       if (activeTenant) {
@@ -293,15 +499,35 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
           },
         });
         activeMembership = membership;
+        tenantSource = 'jwt_org_id';
       }
     }
 
-    // If no active org, default to personal tenant
+    // Priority 2: Use X-Active-Tenant-Id header if no org_id in JWT
+    // This is a fallback for when Clerk's JWT cache hasn't updated yet
+    const headerTenantId = request.headers['x-active-tenant-id'] as string | undefined;
+    if (!activeTenant && headerTenantId) {
+      const requestedTenant = tenants.find((t) => t.id === headerTenantId);
+      if (requestedTenant) {
+        activeTenant = requestedTenant;
+        activeMembership = requestedTenant.membership;
+        tenantSource = 'header';
+        
+        appLogger.info('Using tenant from X-Active-Tenant-Id header (JWT org_id missing)', {
+          headerTenantId, 
+          tenantName: requestedTenant.name,
+          userId: user.id,
+        });
+      }
+    }
+
+    // Priority 3: Fall back to personal tenant
     if (!activeTenant) {
       const personalTenant = tenants.find((t) => t.isPersonal);
       if (personalTenant) {
         activeTenant = personalTenant;
         activeMembership = personalTenant.membership;
+        tenantSource = 'default';
       }
     }
 
@@ -318,12 +544,17 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
     // Set @gkeferstein/tenant compatible context
     request.tenantContext = activeTenant ? {
       tenant: toMojoTenant(activeTenant),
-      source: clerkOrgId ? 'jwt_org_id' : 'default',
-      rawIdentifier: clerkOrgId || undefined,
+      source: tenantSource,
+      rawIdentifier: clerkOrgId || headerTenantId || undefined,
     } : null;
 
   } catch (error) {
-    appLogger.error('Auth error', { error: error instanceof Error ? error.message : String(error) });
+    appLogger.error('Auth error', { 
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      hasAuthHeader: !!request.headers.authorization,
+      authHeaderPrefix: request.headers.authorization?.substring(0, 20) || 'none'
+    });
     return reply.status(401).send({ error: 'Unauthorized', message: 'Invalid token' });
   }
 }

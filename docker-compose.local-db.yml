@@ -1,0 +1,26 @@
+# Docker Compose - Lokale Datenbank (nur für lokale Entwicklung)
+# Nutzt Port 5436 (Host) → 5432 (Container) gemäß PORT-CONVENTIONS.md
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: accounts-db-local
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-accounts}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-accounts_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-accounts_db}
+    ports:
+      - "5436:5432"  # Host-Port 5436 → Container-Port 5432
+    volumes:
+      - accounts-db-local-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-accounts}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  accounts-db-local-data:
+

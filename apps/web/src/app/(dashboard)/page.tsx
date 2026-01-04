@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
+import { useMemo } from "react";
 import { motion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
+import { useToken } from "@/hooks/useToken";
+import { useApiError } from "@/hooks/useApiError";
 import {
   CreditCard,
   Users,
@@ -13,7 +15,6 @@ import {
   Bell,
   Database,
 } from "lucide-react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useTenant } from "@/providers/TenantProvider";
 import { accountsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -34,40 +35,43 @@ interface DashboardData {
 }
 
 export default function DashboardPage() {
-  const { getToken } = useAuth();
+  const { getToken } = useToken();
   const { user, activeTenant, isLoading: tenantLoading } = useTenant();
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { handleError } = useApiError();
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!activeTenant) return;
+  // Fetch subscription with React Query
+  const { data: subscriptionData, isLoading: isLoadingSubscription } = useQuery({
+    queryKey: ['subscription', activeTenant?.id],
+    queryFn: async () => {
+      const token = await getToken();
+      return accountsApi.getSubscription(token);
+    },
+    enabled: !!activeTenant && !tenantLoading,
+    staleTime: 1 * 60 * 1000, // 1 Minute
+  });
 
-      try {
-        const token = await getToken();
-        if (!token) return;
+  // Fetch entitlements with React Query
+  const { data: entitlementsData, isLoading: isLoadingEntitlements } = useQuery({
+    queryKey: ['entitlements', activeTenant?.id],
+    queryFn: async () => {
+      const token = await getToken();
+      return accountsApi.getEntitlements(token);
+    },
+    enabled: !!activeTenant && !tenantLoading,
+    staleTime: 5 * 60 * 1000, // 5 Minuten
+  });
 
-        const [subRes, entRes] = await Promise.all([
-          accountsApi.getSubscription(token),
-          accountsApi.getEntitlements(token),
-        ]);
+  // Combine data
+  const data: DashboardData | null = useMemo(() => {
+    if (!subscriptionData || !entitlementsData) return null;
+    return {
+      subscription: subscriptionData.subscription,
+      entitlements: entitlementsData.total,
+      teamMembers: 1, // Would fetch from tenant details
+    };
+  }, [subscriptionData, entitlementsData]);
 
-        setData({
-          subscription: subRes.subscription,
-          entitlements: entRes.total,
-          teamMembers: 1, // Would fetch from tenant details
-        });
-      } catch (error) {
-        console.error("Failed to fetch dashboard data:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    if (!tenantLoading) {
-      fetchData();
-    }
-  }, [activeTenant, tenantLoading, getToken]);
+  const isLoading = isLoadingSubscription || isLoadingEntitlements;
 
   // Profile completeness calculation
   const profileComplete = user ? [
@@ -77,7 +81,7 @@ export default function DashboardPage() {
   ].filter(Boolean).length * 33 : 0;
 
   return (
-    <DashboardLayout>
+    <>
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -342,6 +346,6 @@ export default function DashboardPage() {
           </Card>
         </motion.div>
       )}
-    </DashboardLayout>
+    </>
   );
 }

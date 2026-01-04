@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { motion } from "framer-motion";
+import { useToken } from "@/hooks/useToken";
+import { useApiError } from "@/hooks/useApiError";
 import { Bell, Mail, Globe, Save, Loader2 } from "lucide-react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { accountsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,8 +24,9 @@ interface Preferences {
 }
 
 export default function PreferencesPage() {
-  const { getToken } = useAuth();
+  const { getToken } = useToken();
   const { toast } = useToast();
+  const { handleError } = useApiError();
   const [preferences, setPreferences] = useState<Preferences | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -33,12 +35,10 @@ export default function PreferencesPage() {
     async function fetchPreferences() {
       try {
         const token = await getToken();
-        if (!token) return;
-
         const data = await accountsApi.getPreferences(token);
         setPreferences(data);
       } catch (error) {
-        console.error("Failed to fetch preferences:", error);
+        handleError(error, "Einstellungen konnten nicht geladen werden.");
       } finally {
         setIsLoading(false);
       }
@@ -53,8 +53,6 @@ export default function PreferencesPage() {
     setIsSaving(true);
     try {
       const token = await getToken();
-      if (!token) return;
-
       await accountsApi.updatePreferences(token, preferences);
 
       toast({
@@ -62,12 +60,7 @@ export default function PreferencesPage() {
         description: "Deine Einstellungen wurden aktualisiert.",
       });
     } catch (error) {
-      console.error("Failed to save preferences:", error);
-      toast({
-        variant: "destructive",
-        title: "Fehler",
-        description: "Einstellungen konnten nicht gespeichert werden.",
-      });
+      handleError(error, "Einstellungen konnten nicht gespeichert werden.");
     } finally {
       setIsSaving(false);
     }
@@ -78,7 +71,7 @@ export default function PreferencesPage() {
   };
 
   return (
-    <DashboardLayout>
+    <>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -262,6 +255,6 @@ export default function PreferencesPage() {
           </Card>
         </motion.div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }

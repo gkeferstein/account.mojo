@@ -1,5 +1,10 @@
 import type { NextConfig } from "next";
 
+// Bundle Analyzer (optional, aktivieren mit ANALYZE=true)
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+});
+
 const nextConfig: NextConfig = {
   output: "standalone",
   reactStrictMode: true,
@@ -7,10 +12,10 @@ const nextConfig: NextConfig = {
   
   // Environment variables
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001",
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3005",
   },
 
-  // Image domains
+  // Image optimization
   images: {
     remotePatterns: [
       {
@@ -22,13 +27,22 @@ const nextConfig: NextConfig = {
         hostname: "images.clerk.dev",
       },
     ],
+    formats: ['image/avif', 'image/webp'],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    minimumCacheTTL: 60,
+  },
+
+  // Optimize package imports (Tree-shaking)
+  experimental: {
+    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
   },
 
   // Transpile shared packages
   transpilePackages: ["@accounts/shared"],
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);
 
 
 

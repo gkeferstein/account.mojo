@@ -9,7 +9,7 @@ import {
   BookOpen,
   Video,
 } from "lucide-react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -36,7 +36,7 @@ const supportLinks = [
 
 export default function SupportPage() {
   return (
-    <DashboardLayout>
+    <>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -134,6 +134,6 @@ export default function SupportPage() {
           </CardContent>
         </Card>
       </motion.div>
-    </DashboardLayout>
+    </>
   );
 }

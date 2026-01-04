@@ -10,10 +10,68 @@ import { appLogger } from '../lib/logger.js';
 import archiver from 'archiver';
 import { Readable } from 'stream';
 
+// Type definitions for export data
+
+export interface AccountExportData {
+  userId: string;
+  clerkUserId: string;
+  exportedAt: string;
+}
+
+export interface PaymentsOrder {
+  id: string;
+  order_number?: string;
+  status: string;
+  grand_total: number | string;
+  currency: string;
+  created_at: string;
+}
+
+export interface PaymentsPayment {
+  id: string;
+  order_id?: string;
+  amount: number | string;
+  status: string;
+  provider: string;
+  created_at: string;
+}
+
+export interface PaymentsInvoice {
+  id: string;
+  invoice_number?: string;
+  order_id: string;
+  status: string;
+  grand_total: number | string;
+  currency: string;
+  issued_at?: string;
+}
+
+export interface PaymentsCustomer {
+  id: string;
+  email: string;
+}
+
+export interface PaymentsExportData {
+  customer: PaymentsCustomer;
+  orders?: PaymentsOrder[];
+  payments?: PaymentsPayment[];
+  invoices?: PaymentsInvoice[];
+  exported_at?: string;
+}
+
+export interface ConsentData {
+  type: string;
+  granted: boolean;
+  version?: string;
+  source?: string;
+  createdAt?: string;
+  grantedAt?: string | null;
+}
+
 export interface ExportData {
-  account: any; // accounts.mojo data
-  payments: any; // payments.mojo data
-  consents: any[]; // kontakte.mojo consents
+  account: AccountExportData;
+  payments: PaymentsExportData | null;
+  consents: ConsentData[];
   exported_at: string;
 }
 
@@ -40,16 +98,16 @@ export async function processDataExport(
     });
 
     // 1. Get payments.mojo data
-    let paymentsData: any = null;
+    let paymentsData: PaymentsExportData | null = null;
     try {
-      paymentsData = await paymentsClient.getGdprExport(clerkUserId);
+      paymentsData = await paymentsClient.getGdprExport(clerkUserId) as PaymentsExportData;
       appLogger.info('Fetched payments data', {
         dataRequestId,
         orders_count: paymentsData?.orders?.length || 0,
         payments_count: paymentsData?.payments?.length || 0,
         invoices_count: paymentsData?.invoices?.length || 0,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       appLogger.warn('Failed to fetch payments data (continuing anyway)', {
         dataRequestId,
         error: error instanceof Error ? error.message : String(error),
@@ -58,14 +116,14 @@ export async function processDataExport(
     }
 
     // 2. Get consents from kontakte.mojo (SSOT)
-    let consents: any[] = [];
+    let consents: ConsentData[] = [];
     try {
-      consents = await crmClient.getConsents(clerkUserId);
+      consents = await crmClient.getConsents(clerkUserId) as ConsentData[];
       appLogger.info('Fetched consents', {
         dataRequestId,
         consents_count: consents.length,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       appLogger.warn('Failed to fetch consents (continuing anyway)', {
         dataRequestId,
         error: error instanceof Error ? error.message : String(error),
@@ -75,11 +133,10 @@ export async function processDataExport(
 
     // 3. Get account data from accounts.mojo (current service)
     // This would include user profile, subscriptions, etc.
-    const accountData = {
+    const accountData: AccountExportData = {
       userId,
       clerkUserId,
       exportedAt: new Date().toISOString(),
-      // Add more account data as needed
     };
 
     // 4. Combine all data
@@ -257,20 +314,28 @@ export async function processAccountDeletion(
       reason,
     });
 
+    // Track failures per service for partial completion handling
+    const failures: string[] = [];
+    const successDetails: Record<string, unknown> = {};
+
     // 1. Anonymize data in payments.mojo
     try {
       const anonymizationResult = await paymentsClient.anonymizeCustomer(clerkUserId, reason, dataRequestId);
+      successDetails.payments = {
+        customer_id: anonymizationResult?.customer_id || 'unknown',
+        anonymized_fields: anonymizationResult?.anonymized_fields || [],
+      };
       appLogger.info('Anonymized customer in payments.mojo', {
         dataRequestId,
-        customer_id: anonymizationResult.customer_id,
-        anonymized_fields: anonymizationResult.anonymized_fields,
+        ...successDetails.payments,
       });
-    } catch (error: any) {
-      appLogger.warn('Failed to anonymize customer in payments.mojo (continuing anyway)', {
+    } catch (error: unknown) {
+      failures.push('payments.mojo');
+      appLogger.warn('Failed to anonymize customer in payments.mojo', {
         dataRequestId,
         error: error instanceof Error ? error.message : String(error),
       });
-      // Continue even if payments.mojo fails
+      // Continue even if payments.mojo fails - other services should still be processed
     }
 
     // 2. Delete/Anonymize in kontakte.mojo (SSOT)
@@ -286,29 +351,47 @@ export async function processAccountDeletion(
     // This would be handled by accounts.mojo's own deletion logic
     // For now, we just update the request status
 
-    // 4. Update request status to completed
+    // 4. Update request status based on completion
+    const currentRequest = await prisma.dataRequest.findUnique({
+      where: { id: dataRequestId },
+    });
+
+    const status = failures.length > 0 ? 'partially_completed' : 'completed';
+    
     await prisma.dataRequest.update({
       where: { id: dataRequestId },
       data: {
-        status: 'completed',
+        status: status as 'completed' | 'partially_completed',
         completedAt: new Date(),
         metadata: {
-          ...((await prisma.dataRequest.findUnique({ where: { id: dataRequestId } }))?.metadata as object || {}),
+          ...((currentRequest?.metadata as object) || {}),
           processedAt: new Date().toISOString(),
+          failures: failures.length > 0 ? failures : undefined,
+          successDetails: Object.keys(successDetails).length > 0 ? successDetails : undefined,
         },
       },
     });
 
+    if (failures.length > 0) {
+      appLogger.warn('Account deletion partially completed', {
+        dataRequestId,
+        failures,
+      });
+    }
+
     appLogger.info('Account deletion completed', {
       dataRequestId,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
     appLogger.error('Account deletion processing failed', {
       dataRequestId,
       userId,
       clerkUserId,
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
+      error: errorMessage,
+      stack: errorStack,
     });
 
     // Update request status to failed
@@ -318,7 +401,7 @@ export async function processAccountDeletion(
         status: 'failed',
         metadata: {
           ...((await prisma.dataRequest.findUnique({ where: { id: dataRequestId } }))?.metadata as object || {}),
-          error: error.message,
+          error: errorMessage,
           failedAt: new Date().toISOString(),
         },
       },

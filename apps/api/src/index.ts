@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import compress from '@fastify/compress';
 
 import env, { validateEnv } from './lib/env.js';
 import prisma from './lib/prisma.js';
@@ -55,6 +56,12 @@ async function registerPlugins(): Promise<void> {
     credentials: true,
   });
 
+  // Compression (gzip/deflate)
+  await fastify.register(compress, {
+    encodings: ['gzip', 'deflate'],
+    threshold: 1024, // Nur komprimieren wenn > 1KB
+  });
+
   // Security headers
   await fastify.register(helmet, {
     contentSecurityPolicy: false,
@@ -104,12 +111,12 @@ fastify.setErrorHandler(errorHandler);
 
 // Graceful shutdown
 async function gracefulShutdown(): Promise<void> {
-  console.log('Shutting down gracefully...');
+  appLogger.info('Shutting down gracefully...');
   
   await fastify.close();
   await prisma.$disconnect();
   
-  console.log('Server shut down successfully');
+  appLogger.info('Server shut down successfully');
   process.exit(0);
 }
 
@@ -124,17 +131,26 @@ async function start(): Promise<void> {
 
     // Connect to database
     await prisma.$connect();
-    console.log('✅ Database connected');
+    appLogger.info('Database connected', {
+      host: env.HOST,
+      port: env.PORT,
+    });
 
     // Start server
     await fastify.listen({ port: env.PORT, host: env.HOST });
     
-    console.log(`🚀 accounts.mojo API running on ${env.HOST}:${env.PORT}`);
-    console.log(`📡 Health check: http://localhost:${env.PORT}/api/v1/health`);
-    console.log(`🌐 Mode: ${env.NODE_ENV}`);
-    console.log(`🔧 Mock services: ${env.MOCK_EXTERNAL_SERVICES}`);
+    appLogger.info('Server started successfully', {
+      host: env.HOST,
+      port: env.PORT,
+      healthCheck: `http://localhost:${env.PORT}/api/v1/health`,
+      nodeEnv: env.NODE_ENV,
+      mockServices: env.MOCK_EXTERNAL_SERVICES,
+    });
   } catch (error) {
-    console.error('Failed to start server:', error);
+    appLogger.error('Failed to start server', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     process.exit(1);
   }
 }

@@ -3,19 +3,13 @@ import prisma from '../lib/prisma.js';
 import crmClient from '../clients/crm.js';
 import { logAuditEvent, AuditActions } from '../services/audit.js';
 import { profileUpdateSchema, consentsUpdateSchema } from '@accounts/shared';
-import { isCacheStale, updateProfileCache, CACHE_TTL } from '../services/cache.service.js';
+import { isCacheStale, updateProfileCache, CACHE_TTL, withSingleFlight } from '../services/cache.service.js';
+import { requireActiveTenant } from '../middleware/active-tenant.js';
 
 export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /profile - Get user profile (aggregated from CRM/SSOT + local cache)
-  fastify.get('/profile', async (request, reply) => {
+  fastify.get('/profile', { preHandler: [requireActiveTenant()] }, async (request, reply) => {
     const { auth } = request;
-
-    if (!auth.activeTenant) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No active tenant',
-      });
-    }
 
     // Try to get from cache first
     let profileCache = await prisma.profileCache.findUnique({
@@ -28,19 +22,26 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
     });
 
     // If cache is stale (older than 5 minutes), refresh from CRM (SSOT)
+    // Use Single-Flight Pattern to prevent concurrent refresh requests
     if (!profileCache || isCacheStale(profileCache, CACHE_TTL.PROFILE)) {
-      // Fetch from kontakte.mojo (SSOT) using clerkUserId
-      // Use fallback: if fetch fails, use stale cache if available
+      const cacheKey = `profile:${auth.activeTenant.id}:${auth.userId}`;
+      
       try {
-        const crmProfile = await crmClient.getProfile(auth.clerkUserId);
+        // Single-Flight: Only one request will fetch, others wait
+        profileCache = await withSingleFlight(cacheKey, async () => {
+          const crmProfile = await crmClient.getProfile(auth.clerkUserId);
 
-        if (crmProfile) {
-          profileCache = await updateProfileCache(
-            auth.activeTenant.id,
-            auth.userId,
-            crmProfile
-          );
-        }
+          if (crmProfile) {
+            return await updateProfileCache(
+              auth.activeTenant.id,
+              auth.userId,
+              crmProfile
+            );
+          }
+          
+          // If no profile from CRM, return existing cache (might be stale)
+          return profileCache;
+        });
       } catch (error) {
         // Fallback: Use stale cache if available, otherwise continue with default
         request.log.warn({
@@ -79,16 +80,9 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   // PATCH /profile - Update user profile (writes to SSOT kontakte.mojo)
-  fastify.patch('/profile', async (request, reply) => {
+  fastify.patch('/profile', { preHandler: [requireActiveTenant()] }, async (request, reply) => {
     const { auth } = request;
     const input = profileUpdateSchema.parse(request.body);
-
-    if (!auth.activeTenant) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No active tenant',
-      });
-    }
 
     // Update in CRM (SSOT) using clerkUserId
     const updatedProfile = await crmClient.updateProfile(auth.clerkUserId, input);
@@ -111,10 +105,10 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
       create: {
         tenantId: auth.activeTenant.id,
         userId: auth.userId,
-        payload: updatedProfile as any,
+        payload: updatedProfile,
       },
       update: {
-        payload: updatedProfile as any,
+        payload: updatedProfile,
       },
     });
 
@@ -138,15 +132,8 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   // GET /profile/consents - Get user consents (from SSOT kontakte.mojo)
-  fastify.get('/profile/consents', async (request, reply) => {
+  fastify.get('/profile/consents', { preHandler: [requireActiveTenant()] }, async (request, reply) => {
     const { auth } = request;
-
-    if (!auth.activeTenant) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No active tenant',
-      });
-    }
 
     // Fetch from kontakte.mojo (SSOT) using clerkUserId
     const consents = await crmClient.getConsents(auth.clerkUserId);
@@ -155,16 +142,9 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   // PATCH /profile/consents - Update user consents (writes to SSOT kontakte.mojo)
-  fastify.patch('/profile/consents', async (request, reply) => {
+  fastify.patch('/profile/consents', { preHandler: [requireActiveTenant()] }, async (request, reply) => {
     const { auth } = request;
     const input = consentsUpdateSchema.parse(request.body);
-
-    if (!auth.activeTenant) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No active tenant',
-      });
-    }
 
     // Update in kontakte.mojo (SSOT) using clerkUserId
     const updatedConsents = await crmClient.updateConsents(auth.clerkUserId, input.consents);

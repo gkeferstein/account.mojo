@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma.js';
 import { logAuditEvent, AuditActions } from '../services/audit.js';
 import { preferencesUpdateSchema, type Preferences } from '@accounts/shared';
+import { requireActiveTenant } from '../middleware/active-tenant.js';
 
 const DEFAULT_PREFERENCES: Preferences = {
   newsletter: false,
@@ -15,15 +16,8 @@ const DEFAULT_PREFERENCES: Preferences = {
 
 export async function preferencesRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /preferences - Get user preferences
-  fastify.get('/preferences', async (request, reply) => {
+  fastify.get('/preferences', { preHandler: [requireActiveTenant()] }, async (request, reply) => {
     const { auth } = request;
-
-    if (!auth.activeTenant) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No active tenant',
-      });
-    }
 
     const prefs = await prisma.preferences.findUnique({
       where: {
@@ -42,16 +36,9 @@ export async function preferencesRoutes(fastify: FastifyInstance): Promise<void>
   });
 
   // PATCH /preferences - Update user preferences
-  fastify.patch('/preferences', async (request, reply) => {
+  fastify.patch('/preferences', { preHandler: [requireActiveTenant()] }, async (request, reply) => {
     const { auth } = request;
     const input = preferencesUpdateSchema.parse(request.body);
-
-    if (!auth.activeTenant) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'No active tenant',
-      });
-    }
 
     // Get current preferences
     const currentPrefs = await prisma.preferences.findUnique({

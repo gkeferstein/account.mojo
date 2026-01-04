@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "next-themes";
-import { dark } from "@clerk/themes";
+import { light } from "@clerk/themes";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { TenantProvider } from "@/providers/TenantProvider";
+import { QueryProvider } from "@/providers/QueryProvider";
+import { ErrorBoundaryWrapper } from "@/components/ErrorBoundaryWrapper";
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -45,13 +47,15 @@ export default function RootLayout({
 }>) {
   return (
     <ClerkProvider
+      signInFallbackRedirectUrl="/"
+      signUpFallbackRedirectUrl="/"
       appearance={{
-        baseTheme: dark,
+        baseTheme: light,
         variables: {
           colorPrimary: "hsl(262 83% 58%)",
-          colorBackground: "hsl(0 0% 6%)",
-          colorInputBackground: "hsl(0 0% 12%)",
-          colorInputText: "hsl(0 0% 98%)",
+          colorBackground: "hsl(0 0% 100%)",
+          colorInputBackground: "hsl(0 0% 98%)",
+          colorInputText: "hsl(0 0% 9%)",
           borderRadius: "0.75rem",
         },
         elements: {
@@ -66,14 +70,18 @@ export default function RootLayout({
         >
           <ThemeProvider
             attribute="class"
-            defaultTheme="dark"
+            defaultTheme="light"
             enableSystem={false}
             disableTransitionOnChange
           >
-            <TenantProvider>
-              {children}
-              <Toaster />
-            </TenantProvider>
+            <ErrorBoundaryWrapper>
+              <QueryProvider>
+                <TenantProvider>
+                  {children}
+                  <Toaster />
+                </TenantProvider>
+              </QueryProvider>
+            </ErrorBoundaryWrapper>
           </ThemeProvider>
         </body>
       </html>
