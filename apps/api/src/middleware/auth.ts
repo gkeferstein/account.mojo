@@ -571,7 +571,7 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
       // TEMPORARY: In development, try without authorizedParties first
       // This helps diagnose if authorizedParties is the issue
       // TODO: Re-enable authorizedParties once we know the correct azp value from the token
-      let verifyOptions: any = {
+      const verifyOptions: any = {
         secretKey: env.CLERK_SECRET_KEY,
       };
       

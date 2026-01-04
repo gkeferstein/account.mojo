@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
-// @ts-ignore - Optional dependency, falls nicht installiert
+// Optional dependency, falls nicht installiert
 let compress: any;
 try {
   compress = await import('@fastify/compress');
