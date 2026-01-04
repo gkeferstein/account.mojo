@@ -92,6 +92,7 @@ export function Header() {
       onTenantChange={showTenantSwitcher ? handleTenantChange : undefined}
       entitlements={[]}
       onLogout={handleLogout}
+      currentApp="accounts"
       isLoading={isLoading}
     />
   );
