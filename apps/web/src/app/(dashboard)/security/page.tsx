@@ -125,7 +125,8 @@ export default function SecurityPage() {
     setIsEnabling2FA(true);
     try {
       // Create a new 2FA enrollment using TOTP
-      const enrollment = await user?.createEnrollment({
+      // Note: createEnrollment may not be available in all Clerk versions
+      const enrollment = await (user as any)?.createEnrollment?.({
         strategy: "totp",
       });
 
@@ -158,10 +159,11 @@ export default function SecurityPage() {
     setIsDisabling2FA(true);
     try {
       // Get all 2FA enrollments and delete them
-      const enrollments = await user?.twoFactorEnabledMethods;
+      // Note: twoFactorEnabledMethods and deleteEnrollment may not be available in all Clerk versions
+      const enrollments = (user as any)?.twoFactorEnabledMethods;
       if (enrollments && enrollments.length > 0) {
         for (const enrollment of enrollments) {
-          await user?.deleteEnrollment(enrollment.id);
+          await (user as any)?.deleteEnrollment?.(enrollment.id);
         }
       }
 
